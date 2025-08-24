@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "image-gallery-plugin",
+	"name": "Image Gallery",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Display all images in your vault in a beautiful gallery view. Supports both local and remote images.",
+	"author": "Julian Zhang",
+	"authorUrl": "https://github.com/forrestchang",
 	"isDesktopOnly": false
 }
