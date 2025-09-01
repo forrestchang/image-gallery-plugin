@@ -515,11 +515,15 @@ export class VaultSearchModal extends Modal {
 		// Get all markdown files and filter out excluded folders
 		const files = this.app.vault.getMarkdownFiles().filter(file => !this.isFileExcluded(file));
 		
-		// Search images using OCR
-		console.log('=== Calling searchImages with query:', trimmedQuery);
-		const imageResults = await this.searchImages(trimmedQuery);
-		console.log('=== searchImages returned', imageResults.length, 'results');
-		results.push(...imageResults);
+		// Search images using OCR if enabled in settings
+		if (this.settings?.searchIncludeImages) {
+			console.log('=== Calling searchImages with query:', trimmedQuery);
+			const imageResults = await this.searchImages(trimmedQuery);
+			console.log('=== searchImages returned', imageResults.length, 'results');
+			results.push(...imageResults);
+		} else {
+			console.log('=== Image search disabled in settings, skipping image results');
+		}
 		
 		for (const file of files) {
 			try {

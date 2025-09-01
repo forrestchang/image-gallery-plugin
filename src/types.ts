@@ -17,6 +17,7 @@ export interface ImageGallerySettings {
 	enableFolderFilter: boolean;
 	searchExcludeFolders: string[];
 	searchMinimalMode: boolean;
+	searchIncludeImages: boolean;
 }
 
 export const DEFAULT_SETTINGS: ImageGallerySettings = {
@@ -25,5 +26,6 @@ export const DEFAULT_SETTINGS: ImageGallerySettings = {
 	contextParagraphs: 3,
 	enableFolderFilter: true,
 	searchExcludeFolders: [],
-	searchMinimalMode: false
+	searchMinimalMode: false,
+	searchIncludeImages: true
 }

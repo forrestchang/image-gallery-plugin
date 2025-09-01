@@ -19,6 +19,7 @@ interface ImageGallerySettings {
 	enableFolderFilter: boolean;
 	searchExcludeFolders: string[];
 	searchMinimalMode: boolean;
+	searchIncludeImages: boolean;
 }
 
 const DEFAULT_SETTINGS: ImageGallerySettings = {
@@ -27,7 +28,8 @@ const DEFAULT_SETTINGS: ImageGallerySettings = {
 	contextParagraphs: 3,
 	enableFolderFilter: true,
 	searchExcludeFolders: [],
-	searchMinimalMode: false
+	searchMinimalMode: false,
+	searchIncludeImages: true
 }
 
 export default class ImageGalleryPlugin extends Plugin {
@@ -1883,6 +1885,16 @@ class ImageGallerySettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.searchMinimalMode)
 				.onChange(async (value) => {
 					this.plugin.settings.searchMinimalMode = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Include Image Results')
+			.setDesc('Enable image search in Search+ to show images containing text that matches your query.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.searchIncludeImages)
+				.onChange(async (value) => {
+					this.plugin.settings.searchIncludeImages = value;
 					await this.plugin.saveSettings();
 				}));
 
