@@ -3,6 +3,16 @@ import { StyleManager } from '../styles/styleManager';
 import { ImageGallerySettings } from '../types';
 import { OCRService } from '../../ocr-service';
 
+interface ImageInfo {
+	path: string;
+	file?: TFile;
+	isLocal: boolean;
+	displayName: string;
+	createdTime?: number;
+	modifiedTime?: number;
+	ocrText?: string;
+}
+
 interface BlockSearchResult {
 	file: TFile;
 	blockContent: string;
@@ -30,14 +40,11 @@ export class VaultSearchModal extends Modal {
 	private settings: ImageGallerySettings;
 	private ocrService: OCRService;
 	
-	constructor(app: App, ocrService: OCRService) {
+	constructor(app: App, private plugin: any) {
 		super(app);
 		this.styleManager = new StyleManager();
-		this.ocrService = ocrService;
-		
-		// Get plugin settings
-		const plugin = (this.app as any).plugins.getPlugin('image-gallery-plugin');
-		this.settings = plugin?.settings;
+		this.ocrService = plugin.ocrService;
+		this.settings = plugin.settings;
 	}
 
 	/**
@@ -348,44 +355,56 @@ export class VaultSearchModal extends Modal {
 		}
 
 		const results: BlockSearchResult[] = [];
-		const imagePaths = this.ocrService.searchImages(query);
 		
-		// Get all image files
-		const imageFiles = this.app.vault.getFiles().filter(file => {
-			const ext = file.extension.toLowerCase();
-			return ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'].includes(ext);
-		});
+		try {
+			// Get all images from the main plugin
+			const allImages: ImageInfo[] = await this.plugin.getAllImages();
+			
+			// Filter to local images only
+			const localImages = allImages.filter(img => img.isLocal && img.file);
+			
+			// Search OCR content for matching images
+			const imagePaths = this.ocrService.searchImages(query);
+			
+			for (const imagePath of imagePaths) {
+				// Find the ImageInfo object for this path
+				const imageInfo = localImages.find(img => img.path === imagePath);
+				if (!imageInfo || !imageInfo.file) {
+					continue;
+				}
 
-		for (const imagePath of imagePaths) {
-			const imageFile = imageFiles.find(file => file.path === imagePath);
-			if (!imageFile || this.isFileExcluded(imageFile)) {
-				continue;
+				// Check if this image file should be excluded
+				if (this.isFileExcluded(imageInfo.file)) {
+					continue;
+				}
+
+				// Get OCR result for context and text
+				const ocrResult = this.ocrService.getCachedResult(imagePath);
+				if (!ocrResult) {
+					continue;
+				}
+
+				// Create image preview URL using the vault adapter
+				const imagePreview = this.app.vault.adapter.getResourcePath(imagePath);
+
+				// Calculate score based on OCR content relevance
+				const score = this.calculateImageScore(ocrResult.text, this.currentSearchTerms) + 500; // Bonus for images
+
+				results.push({
+					file: imageInfo.file,
+					blockContent: `Image: ${ocrResult.text || 'No text detected'}`,
+					blockStartLine: 0,
+					blockEndLine: 0,
+					matchedTerms: this.currentSearchTerms,
+					score,
+					context: ocrResult.context?.nearbyContent || '',
+					isTitle: false,
+					isImage: true,
+					imagePreview
+				});
 			}
-
-			// Get OCR result for context
-			const ocrResult = this.ocrService.getCachedResult(imagePath);
-			if (!ocrResult) {
-				continue;
-			}
-
-			// Create image preview URL
-			const imagePreview = this.app.vault.adapter.getResourcePath(imagePath);
-
-			// Calculate score based on OCR content relevance
-			const score = this.calculateImageScore(ocrResult.text, this.currentSearchTerms) + 500; // Bonus for images
-
-			results.push({
-				file: imageFile,
-				blockContent: `Image: ${ocrResult.text || 'No text detected'}`,
-				blockStartLine: 0,
-				blockEndLine: 0,
-				matchedTerms: this.currentSearchTerms,
-				score,
-				context: ocrResult.context?.nearbyContent || '',
-				isTitle: false,
-				isImage: true,
-				imagePreview
-			});
+		} catch (error) {
+			console.error('Error searching images:', error);
 		}
 
 		return results;
