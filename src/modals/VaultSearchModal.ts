@@ -365,6 +365,7 @@ export class VaultSearchModal extends Modal {
 			
 			// Search OCR content for matching images
 			const imagePaths = this.ocrService.searchImages(query);
+			console.log('Image search for query:', query, 'Found paths:', imagePaths);
 			
 			for (const imagePath of imagePaths) {
 				// Find the ImageInfo object for this path
@@ -384,8 +385,8 @@ export class VaultSearchModal extends Modal {
 					continue;
 				}
 
-				// Create image preview URL using the vault adapter
-				const imagePreview = this.app.vault.adapter.getResourcePath(imagePath);
+				// Create image preview URL using the correct vault method
+				const imagePreview = this.app.vault.getResourcePath(imageInfo.file);
 
 				// Calculate score based on OCR content relevance
 				const score = this.calculateImageScore(ocrResult.text, this.currentSearchTerms) + 500; // Bonus for images
@@ -948,6 +949,8 @@ export class VaultSearchModal extends Modal {
 				
 				// Add image preview if this is an image result
 				if (result.isImage && result.imagePreview) {
+					console.log('Rendering image result:', result.file.path, 'Preview URL:', result.imagePreview);
+					
 					const imagePreviewEl = blockContentEl.createEl('div', {
 						cls: 'search-image-preview'
 					});
@@ -956,6 +959,17 @@ export class VaultSearchModal extends Modal {
 						cls: 'search-image-thumbnail'
 					});
 					imageEl.src = result.imagePreview;
+					imageEl.alt = result.file.name;
+					
+					// Add error handling for image loading
+					imageEl.addEventListener('error', () => {
+						console.error('Failed to load image:', result.imagePreview);
+						imageEl.style.display = 'none';
+					});
+					
+					imageEl.addEventListener('load', () => {
+						console.log('Image loaded successfully:', result.imagePreview);
+					});
 					
 					const textEl = blockContentEl.createEl('div', {
 						cls: 'search-image-text'
