@@ -395,7 +395,7 @@ export class VaultSearchModal extends Modal {
 
 				results.push({
 					file: imageInfo.file,
-					blockContent: `Image: ${ocrResult.text || 'No text detected'}`,
+					blockContent: ocrResult.text || 'No text detected',
 					blockStartLine: 0,
 					blockEndLine: 0,
 					matchedTerms: this.currentSearchTerms,
@@ -976,18 +976,56 @@ export class VaultSearchModal extends Modal {
 						console.log('Image loaded successfully:', result.imagePreview);
 					});
 					
-					const textEl = blockContentEl.createEl('div', {
-						cls: 'search-image-text'
+					// Content area next to image
+					const contentAreaEl = blockContentEl.createEl('div', {
+						cls: 'search-image-content-area'
 					});
-					textEl.innerHTML = this.highlightTerms(result.blockContent);
 					
-					// Add context if available
-					if (result.context) {
-						const contextEl = blockContentEl.createEl('div', {
-							cls: 'search-image-context',
-							text: `Context: ${result.context}`
+					// OCR text with label
+					if (result.blockContent && result.blockContent !== 'No text detected') {
+						const ocrSection = contentAreaEl.createEl('div', {
+							cls: 'search-image-ocr-section'
+						});
+						
+						const ocrLabel = ocrSection.createEl('div', {
+							cls: 'search-image-ocr-label',
+							text: 'Image text:'
+						});
+						
+						const ocrText = ocrSection.createEl('div', {
+							cls: 'search-image-ocr-text'
+						});
+						ocrText.innerHTML = this.highlightTerms(result.blockContent);
+					} else {
+						const noTextEl = contentAreaEl.createEl('div', {
+							cls: 'search-image-no-text',
+							text: 'No text detected in image'
 						});
 					}
+					
+					// Context information
+					if (result.context) {
+						const contextSection = contentAreaEl.createEl('div', {
+							cls: 'search-image-context-section'
+						});
+						
+						const contextLabel = contextSection.createEl('div', {
+							cls: 'search-image-context-label',
+							text: 'Context:'
+						});
+						
+						const contextText = contextSection.createEl('div', {
+							cls: 'search-image-context-text',
+							text: result.context
+						});
+					}
+					
+					// File info
+					const fileInfo = contentAreaEl.createEl('div', {
+						cls: 'search-image-file-info',
+						text: `📷 ${result.file.name}`
+					});
+					
 				} else {
 					blockContentEl.innerHTML = this.highlightTerms(result.blockContent);
 				}
@@ -1378,8 +1416,12 @@ export class VaultSearchModal extends Modal {
 			/* Image search result styles */
 			[data-vault-search-modal="true"] .search-image-content {
 				display: flex !important;
-				gap: 12px !important;
+				gap: 16px !important;
 				align-items: flex-start !important;
+				padding: 8px !important;
+				background: var(--background-secondary) !important;
+				border-radius: 8px !important;
+				margin: 4px 0 !important;
 			}
 			
 			[data-vault-search-modal="true"] .search-image-preview {
@@ -1387,28 +1429,90 @@ export class VaultSearchModal extends Modal {
 			}
 			
 			[data-vault-search-modal="true"] .search-image-thumbnail {
-				width: 80px !important;
-				height: 80px !important;
+				width: 120px !important;
+				height: 90px !important;
 				object-fit: cover !important;
-				border-radius: 4px !important;
-				border: 1px solid var(--background-modifier-border) !important;
+				border-radius: 6px !important;
+				border: 2px solid var(--background-modifier-border) !important;
+				transition: all 0.2s ease !important;
+				cursor: pointer !important;
 			}
 			
-			[data-vault-search-modal="true"] .search-image-text {
+			[data-vault-search-modal="true"] .search-image-thumbnail:hover {
+				border-color: var(--interactive-accent) !important;
+				transform: scale(1.02) !important;
+				box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-content-area {
 				flex: 1 !important;
-				font-size: 13px !important;
-				color: var(--text-muted) !important;
-				line-height: 1.4 !important;
+				display: flex !important;
+				flex-direction: column !important;
+				gap: 8px !important;
 			}
 			
-			[data-vault-search-modal="true"] .search-image-context {
+			[data-vault-search-modal="true"] .search-image-ocr-section {
+				margin-bottom: 6px !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-ocr-label {
+				font-size: 11px !important;
+				font-weight: 600 !important;
+				color: var(--text-accent) !important;
+				margin-bottom: 3px !important;
+				text-transform: uppercase !important;
+				letter-spacing: 0.5px !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-ocr-text {
+				font-size: 13px !important;
+				color: var(--text-normal) !important;
+				line-height: 1.4 !important;
+				background: var(--background-primary) !important;
+				padding: 6px 8px !important;
+				border-radius: 4px !important;
+				border-left: 3px solid var(--interactive-accent) !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-no-text {
+				font-size: 12px !important;
+				color: var(--text-faint) !important;
+				font-style: italic !important;
+				padding: 6px 8px !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-context-section {
+				margin-top: 8px !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-context-label {
+				font-size: 10px !important;
+				font-weight: 500 !important;
+				color: var(--text-muted) !important;
+				margin-bottom: 3px !important;
+				text-transform: uppercase !important;
+				letter-spacing: 0.5px !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-context-text {
 				font-size: 11px !important;
 				color: var(--text-faint) !important;
-				margin-top: 4px !important;
-				font-style: italic !important;
-				max-height: 40px !important;
+				line-height: 1.3 !important;
+				max-height: 45px !important;
 				overflow: hidden !important;
 				text-overflow: ellipsis !important;
+				background: var(--background-primary) !important;
+				padding: 4px 6px !important;
+				border-radius: 3px !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-file-info {
+				font-size: 11px !important;
+				color: var(--text-muted) !important;
+				margin-top: auto !important;
+				padding-top: 6px !important;
+				border-top: 1px solid var(--background-modifier-border) !important;
+				font-weight: 500 !important;
 			}
 			
 			/* Image result file header styling */
