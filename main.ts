@@ -1,5 +1,6 @@
 import { App, Modal, Notice, Plugin, TFile, getAllTags, MarkdownView, DropdownComponent, TextComponent, ButtonComponent, PluginSettingTab, Setting } from 'obsidian';
 import { OCRService } from './ocr-service';
+import { VaultSearchModal } from './src/modals/VaultSearchModal';
 
 interface ImageInfo {
 	path: string;
@@ -16,13 +17,17 @@ interface ImageGallerySettings {
 	ocrConcurrency: number;
 	contextParagraphs: number;
 	enableFolderFilter: boolean;
+	searchExcludeFolders: string[];
+	searchMinimalMode: boolean;
 }
 
 const DEFAULT_SETTINGS: ImageGallerySettings = {
 	enableOCRDebug: false,
 	ocrConcurrency: 4,
 	contextParagraphs: 3,
-	enableFolderFilter: true
+	enableFolderFilter: true,
+	searchExcludeFolders: [],
+	searchMinimalMode: false
 }
 
 export default class ImageGalleryPlugin extends Plugin {
@@ -39,9 +44,14 @@ export default class ImageGalleryPlugin extends Plugin {
 		this.ocrService = new OCRService(this.app);
 		await this.ocrService.loadIndex();
 
-		// Add ribbon icon
+		// Add ribbon icon for Image Gallery
 		const ribbonIconEl = this.addRibbonIcon('image', 'Image Gallery', (evt: MouseEvent) => {
 			this.openImageGallery();
+		});
+
+		// Add ribbon icon for Search+
+		const searchRibbonIconEl = this.addRibbonIcon('search', 'Search+', (evt: MouseEvent) => {
+			this.openVaultSearch();
 		});
 
 		// Add command to open gallery
@@ -50,6 +60,15 @@ export default class ImageGalleryPlugin extends Plugin {
 			name: 'Open Image Gallery',
 			callback: () => {
 				this.openImageGallery();
+			}
+		});
+
+		// Add command to open Search+
+		this.addCommand({
+			id: 'open-vault-search',
+			name: 'Open Search+',
+			callback: () => {
+				this.openVaultSearch();
 			}
 		});
 		
@@ -118,6 +137,10 @@ export default class ImageGalleryPlugin extends Plugin {
 	async openImageGallery() {
 		const images = await this.getAllImages();
 		new ImageGalleryModal(this.app, images, this.ocrService).open();
+	}
+
+	openVaultSearch() {
+		new VaultSearchModal(this.app).open();
 	}
 
 	async getAllImages(): Promise<ImageInfo[]> {
@@ -567,10 +590,12 @@ class ImagePreviewModal extends Modal {
 			cls: 'image-preview-metadata'
 		});
 		
-		// Add CSS styles with unique ID
+		// Add CSS styles with unique ID and proper isolation
 		const style = document.createElement('style');
 		style.id = 'image-preview-modal-styles';
+		// Use data attribute to increase specificity and prevent conflicts
 		style.textContent = `
+			/* Scoped styles for image preview modal only */
 			.modal.mod-image-preview {
 				width: 90vw;
 				max-width: 90vw;
@@ -582,7 +607,7 @@ class ImagePreviewModal extends Modal {
 				height: 100%;
 				padding: 16px;
 			}
-			.image-preview-container {
+			.modal.mod-image-preview .image-preview-container {
 				display: flex;
 				flex-direction: column;
 				height: 100%;
@@ -590,7 +615,7 @@ class ImagePreviewModal extends Modal {
 			}
 			
 			/* Compact top controls bar */
-			.image-preview-top-controls {
+			.modal.mod-image-preview .image-preview-top-controls {
 				display: flex;
 				justify-content: space-between;
 				align-items: center;
@@ -601,21 +626,21 @@ class ImagePreviewModal extends Modal {
 			}
 			
 			/* Navigation controls (left side) */
-			.image-preview-nav-controls {
+			.modal.mod-image-preview .image-preview-nav-controls {
 				display: flex;
 				align-items: center;
 				gap: 8px;
 			}
 			
 			/* Action controls (right side) */
-			.image-preview-action-controls {
+			.modal.mod-image-preview .image-preview-action-controls {
 				display: flex;
 				align-items: center;
 				gap: 6px;
 			}
 			
 			/* Unified button styles */
-			.image-preview-control-btn {
+			.modal.mod-image-preview .image-preview-control-btn {
 				padding: 4px 8px;
 				background: var(--interactive-normal);
 				color: var(--text-normal);
@@ -629,11 +654,11 @@ class ImagePreviewModal extends Modal {
 				align-items: center;
 				justify-content: center;
 			}
-			.image-preview-control-btn:hover {
+			.modal.mod-image-preview .image-preview-control-btn:hover {
 				background: var(--interactive-hover);
 			}
 			
-			.image-preview-counter {
+			.modal.mod-image-preview .image-preview-counter {
 				font-weight: 500;
 				font-size: 12px;
 				color: var(--text-muted);
@@ -641,7 +666,7 @@ class ImagePreviewModal extends Modal {
 				text-align: center;
 			}
 			
-			.image-preview-zoom-level {
+			.modal.mod-image-preview .image-preview-zoom-level {
 				min-width: 40px;
 				text-align: center;
 				font-weight: 500;
@@ -650,7 +675,7 @@ class ImagePreviewModal extends Modal {
 			}
 			
 			/* Main image container */
-			.image-preview-image-container {
+			.modal.mod-image-preview .image-preview-image-container {
 				flex: 1;
 				display: flex;
 				justify-content: center;
@@ -660,7 +685,7 @@ class ImagePreviewModal extends Modal {
 				border-radius: 6px;
 				position: relative;
 			}
-			.image-preview-img {
+			.modal.mod-image-preview .image-preview-img {
 				max-width: 100%;
 				max-height: 100%;
 				object-fit: contain;
@@ -669,20 +694,20 @@ class ImagePreviewModal extends Modal {
 				user-select: none;
 				-webkit-user-drag: none;
 			}
-			.image-preview-img.zoomed {
+			.modal.mod-image-preview .image-preview-img.zoomed {
 				cursor: grab;
 			}
-			.image-preview-img.zoomed:active {
+			.modal.mod-image-preview .image-preview-img.zoomed:active {
 				cursor: grabbing;
 			}
 			
 			/* Compact bottom metadata bar */
-			.image-preview-bottom-bar {
+			.modal.mod-image-preview .image-preview-bottom-bar {
 				padding: 6px 12px;
 				background: var(--background-secondary);
 				border-radius: 6px;
 			}
-			.image-preview-metadata {
+			.modal.mod-image-preview .image-preview-metadata {
 				font-size: 11px;
 				color: var(--text-muted);
 				text-align: center;
@@ -691,7 +716,9 @@ class ImagePreviewModal extends Modal {
 				white-space: nowrap;
 			}
 		`;
-		document.head.appendChild(style);
+		// Append style to modal element instead of document.head to limit scope
+		// This helps prevent conflicts with other plugins
+		this.modalEl.appendChild(style);
 		
 		// Keyboard navigation and zoom
 		this.modalEl.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -808,19 +835,8 @@ class ImagePreviewModal extends Modal {
 	}
 
 	cleanupStyles() {
-		// Remove any existing image preview styles
-		const existingStyle = document.getElementById('image-preview-modal-styles');
-		if (existingStyle) {
-			existingStyle.remove();
-		}
-		
-		// Also clean up any old styles that might have been created without ID
-		const styles = document.querySelectorAll('style');
-		styles.forEach(style => {
-			if (style.textContent?.includes('.image-preview-container')) {
-				style.remove();
-			}
-		});
+		// Styles are now in modal element, so they get cleaned up automatically
+		// This method is kept for compatibility but no longer needed
 	}
 
 	onClose() {
@@ -1335,7 +1351,7 @@ class ImageGalleryModal extends Modal {
 		this.statsContainer.createDiv({ cls: 'image-gallery-stat' }).innerHTML = 
 			`<span class="image-gallery-stat-label">Remote:</span> ${remoteImages}`;
 
-		// Add CSS styles with unique ID
+		// Add CSS styles with unique ID and proper isolation
 		const style = document.createElement('style');
 		style.id = 'image-gallery-modal-styles';
 		style.textContent = `
@@ -1346,7 +1362,7 @@ class ImageGalleryModal extends Modal {
 			.modal.mod-image-gallery .modal-content {
 				max-width: none;
 			}
-			.image-gallery-header {
+			.modal.mod-image-gallery .image-gallery-header {
 				display: flex;
 				align-items: center;
 				gap: 12px;
@@ -1354,11 +1370,11 @@ class ImageGalleryModal extends Modal {
 				border-bottom: 1px solid var(--background-modifier-border);
 				margin-bottom: 10px;
 			}
-			.search-section {
+			.modal.mod-image-gallery .search-section {
 				flex: 1;
 				min-width: 200px;
 			}
-			.image-gallery-search-input {
+			.modal.mod-image-gallery .image-gallery-search-input {
 				width: 100%;
 				background: var(--background-secondary);
 				border: 1px solid var(--background-modifier-border);
@@ -1367,21 +1383,21 @@ class ImageGalleryModal extends Modal {
 				font-size: 13px;
 				color: var(--text-normal);
 			}
-			.image-gallery-search-input:focus {
+			.modal.mod-image-gallery .image-gallery-search-input:focus {
 				border-color: var(--interactive-accent);
 				box-shadow: 0 0 0 1px var(--interactive-accent-alpha);
 				outline: none;
 			}
-			.image-gallery-search-input::placeholder {
+			.modal.mod-image-gallery .image-gallery-search-input::placeholder {
 				color: var(--text-muted);
 			}
-			.ocr-section {
+			.modal.mod-image-gallery .ocr-section {
 				display: flex;
 				align-items: center;
 				gap: 6px;
 				flex-shrink: 0;
 			}
-			.ocr-index-status {
+			.modal.mod-image-gallery .ocr-index-status {
 				color: var(--text-accent);
 				font-size: 11px;
 				font-weight: 500;
@@ -1390,36 +1406,36 @@ class ImageGalleryModal extends Modal {
 				border-radius: 3px;
 				cursor: help;
 			}
-			.folder-section {
+			.modal.mod-image-gallery .folder-section {
 				flex-shrink: 0;
 				display: flex;
 				align-items: center;
 			}
-			.folder-section .dropdown {
+			.modal.mod-image-gallery .folder-section .dropdown {
 				font-size: 12px;
 				min-width: 120px;
 			}
-			.sort-section {
+			.modal.mod-image-gallery .sort-section {
 				flex-shrink: 0;
 				display: flex;
 				align-items: center;
 			}
-			.sort-section .dropdown {
+			.modal.mod-image-gallery .sort-section .dropdown {
 				font-size: 12px;
 			}
-			.ocr-section .clickable-icon,
-			.ocr-section button {
+			.modal.mod-image-gallery .ocr-section .clickable-icon,
+			.modal.mod-image-gallery .ocr-section button {
 				padding: 4px 8px;
 				font-size: 11px;
 				border-radius: 3px;
 				background: var(--background-secondary);
 				border: 1px solid var(--background-modifier-border);
 			}
-			.ocr-section .clickable-icon:hover,
-			.ocr-section button:hover {
+			.modal.mod-image-gallery .ocr-section .clickable-icon:hover,
+			.modal.mod-image-gallery .ocr-section button:hover {
 				background: var(--background-modifier-hover);
 			}
-			.image-gallery-container {
+			.modal.mod-image-gallery .image-gallery-container {
 				display: grid;
 				grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 				gap: 15px;
@@ -1427,7 +1443,7 @@ class ImageGalleryModal extends Modal {
 				max-height: 75vh;
 				overflow-y: auto;
 			}
-			.image-gallery-stats {
+			.modal.mod-image-gallery .image-gallery-stats {
 				display: flex;
 				justify-content: center;
 				gap: 20px;
@@ -1437,11 +1453,11 @@ class ImageGalleryModal extends Modal {
 				font-size: 11px;
 				color: var(--text-muted);
 			}
-			.image-gallery-stat-label {
+			.modal.mod-image-gallery .image-gallery-stat-label {
 				font-weight: 500;
 				margin-right: 4px;
 			}
-			.image-gallery-item {
+			.modal.mod-image-gallery .image-gallery-item {
 				position: relative;
 				border: 1px solid var(--background-modifier-border);
 				border-radius: 8px;
@@ -1450,17 +1466,17 @@ class ImageGalleryModal extends Modal {
 				transition: transform 0.2s;
 				background: var(--background-secondary);
 			}
-			.image-gallery-item:hover {
+			.modal.mod-image-gallery .image-gallery-item:hover {
 				transform: scale(1.05);
 				box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 			}
-			.image-gallery-item img {
+			.modal.mod-image-gallery .image-gallery-item img {
 				width: 100%;
 				height: 200px;
 				object-fit: cover;
 				display: block;
 			}
-			.image-gallery-item-title {
+			.modal.mod-image-gallery .image-gallery-item-title {
 				padding: 8px;
 				font-size: 12px;
 				text-align: center;
@@ -1470,7 +1486,7 @@ class ImageGalleryModal extends Modal {
 				background: var(--background-primary);
 				border-top: 1px solid var(--background-modifier-border);
 			}
-			.image-gallery-stats {
+			.modal.mod-image-gallery .image-gallery-stats {
 				padding: 10px;
 				background: var(--background-secondary);
 				border-radius: 8px;
@@ -1478,15 +1494,17 @@ class ImageGalleryModal extends Modal {
 				display: flex;
 				gap: 20px;
 			}
-			.image-gallery-stat {
+			.modal.mod-image-gallery .image-gallery-stat {
 				display: flex;
 				gap: 5px;
 			}
-			.image-gallery-stat-label {
+			.modal.mod-image-gallery .image-gallery-stat-label {
 				font-weight: bold;
 			}
 		`;
-		document.head.appendChild(style);
+		// Append style to modal element instead of document.head to limit scope
+		// This helps prevent conflicts with other plugins
+		this.modalEl.appendChild(style);
 		
 		
 		// Initial render of gallery
@@ -1502,19 +1520,7 @@ class ImageGalleryModal extends Modal {
 			clearTimeout(this.searchTimeout);
 		}
 		
-		// Clean up styles
-		const existingStyle = document.getElementById('image-gallery-modal-styles');
-		if (existingStyle) {
-			existingStyle.remove();
-		}
-		
-		// Also clean up any old styles that might have been created without ID
-		const styles = document.querySelectorAll('style');
-		styles.forEach(style => {
-			if (style.textContent?.includes('.image-gallery-container')) {
-				style.remove();
-			}
-		});
+		// Styles are now in modal element, so they get cleaned up automatically
 	}
 }
 
@@ -1677,7 +1683,7 @@ class OCRDebugModal extends Modal {
 			}
 		};
 
-		// Add styles with unique ID
+		// Add styles with unique ID and proper isolation
 		const style = document.createElement('style');
 		style.id = 'ocr-debug-modal-styles';
 		style.textContent = `
@@ -1691,34 +1697,34 @@ class OCRDebugModal extends Modal {
 				display: flex;
 				flex-direction: column;
 			}
-			.ocr-debug-image-info {
+			.modal.mod-ocr-debug .ocr-debug-image-info {
 				margin-bottom: 15px;
 			}
-			.ocr-debug-image-container {
+			.modal.mod-ocr-debug .ocr-debug-image-container {
 				text-align: center;
 				margin-bottom: 20px;
 			}
-			.ocr-debug-image {
+			.modal.mod-ocr-debug .ocr-debug-image {
 				max-width: 100%;
 				max-height: 200px;
 				border: 1px solid var(--background-modifier-border);
 				border-radius: 8px;
 			}
-			.ocr-debug-results {
+			.modal.mod-ocr-debug .ocr-debug-results {
 				flex: 1;
 				overflow-y: auto;
 			}
-			.ocr-debug-section {
+			.modal.mod-ocr-debug .ocr-debug-section {
 				margin-bottom: 20px;
 				padding: 15px;
 				background: var(--background-secondary);
 				border-radius: 8px;
 			}
-			.ocr-debug-section h4 {
+			.modal.mod-ocr-debug .ocr-debug-section h4 {
 				margin: 0 0 10px 0;
 				color: var(--text-accent);
 			}
-			.ocr-debug-text {
+			.modal.mod-ocr-debug .ocr-debug-text {
 				background: var(--background-primary);
 				padding: 10px;
 				border-radius: 4px;
@@ -1728,7 +1734,7 @@ class OCRDebugModal extends Modal {
 				word-wrap: break-word;
 				min-height: 60px;
 			}
-			.ocr-debug-info {
+			.modal.mod-ocr-debug .ocr-debug-info {
 				background: var(--background-primary);
 				padding: 10px;
 				border-radius: 4px;
@@ -1736,12 +1742,12 @@ class OCRDebugModal extends Modal {
 				margin: 0;
 				font-size: 12px;
 			}
-			.ocr-debug-timestamp {
+			.modal.mod-ocr-debug .ocr-debug-timestamp {
 				font-size: 12px;
 				color: var(--text-muted);
 				margin: 5px 0;
 			}
-			.ocr-debug-context {
+			.modal.mod-ocr-debug .ocr-debug-context {
 				background: var(--background-primary);
 				padding: 8px;
 				border-radius: 4px;
@@ -1754,49 +1760,39 @@ class OCRDebugModal extends Modal {
 				max-height: 100px;
 				overflow-y: auto;
 			}
-			.ocr-debug-section h5 {
+			.modal.mod-ocr-debug .ocr-debug-section h5 {
 				margin: 15px 0 5px 0;
 				font-size: 13px;
 				font-weight: 600;
 				color: var(--text-normal);
 			}
-			.ocr-debug-section h6 {
+			.modal.mod-ocr-debug .ocr-debug-section h6 {
 				margin: 10px 0 3px 0;
 				font-size: 11px;
 				font-weight: 500;
 				color: var(--text-muted);
 			}
-			.fresh-context-container {
+			.modal.mod-ocr-debug .fresh-context-container {
 				margin-top: 15px;
 			}
-			.ocr-debug-no-context {
+			.modal.mod-ocr-debug .ocr-debug-no-context {
 				color: var(--text-muted);
 				font-style: italic;
 				font-size: 12px;
 				margin: 10px 0;
 			}
-			.ocr-debug-buttons {
+			.modal.mod-ocr-debug .ocr-debug-buttons {
 				text-align: center;
 				margin-top: 15px;
 			}
 		`;
-		document.head.appendChild(style);
+		// Append style to modal element instead of document.head to limit scope
+		// This helps prevent conflicts with other plugins
+		this.modalEl.appendChild(style);
 	}
 
 	onClose() {
-		// Clean up styles
-		const existingStyle = document.getElementById('ocr-debug-modal-styles');
-		if (existingStyle) {
-			existingStyle.remove();
-		}
-		
-		// Also clean up any old styles that might have been created without ID
-		const styles = document.querySelectorAll('style');
-		styles.forEach(style => {
-			if (style.textContent?.includes('.ocr-debug-')) {
-				style.remove();
-			}
-		});
+		// Styles are now in modal element, so they get cleaned up automatically
 	}
 }
 
@@ -1856,6 +1852,37 @@ class ImageGallerySettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.enableFolderFilter)
 				.onChange(async (value) => {
 					this.plugin.settings.enableFolderFilter = value;
+					await this.plugin.saveSettings();
+				}));
+
+		// Search+ Settings Section
+		containerEl.createEl('h3', { text: 'Search+ Settings' });
+
+		new Setting(containerEl)
+			.setName('Exclude Folders from Search')
+			.setDesc('List of folder paths to exclude from Search+ results. Enter one folder path per line (e.g., "Templates" or "Archive/Old Notes").')
+			.addTextArea(text => {
+				text.setPlaceholder('Templates\nArchive\nPrivate')
+					.setValue(this.plugin.settings.searchExcludeFolders.join('\n'))
+					.onChange(async (value) => {
+						// Split by lines and filter empty lines
+						this.plugin.settings.searchExcludeFolders = value
+							.split('\n')
+							.map(line => line.trim())
+							.filter(line => line.length > 0);
+						await this.plugin.saveSettings();
+					});
+				text.inputEl.rows = 4;
+				text.inputEl.cols = 50;
+			});
+
+		new Setting(containerEl)
+			.setName('Minimal Mode')
+			.setDesc('Enable minimal mode for Search+ to show only search results without extra UI elements.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.searchMinimalMode)
+				.onChange(async (value) => {
+					this.plugin.settings.searchMinimalMode = value;
 					await this.plugin.saveSettings();
 				}));
 
@@ -2011,7 +2038,7 @@ class ConfirmModal extends Modal {
 			this.close();
 		};
 
-		// Add styles with unique ID
+		// Add styles with unique ID and proper isolation
 		const style = document.createElement('style');
 		style.id = 'confirm-modal-styles';
 		style.textContent = `
@@ -2019,42 +2046,44 @@ class ConfirmModal extends Modal {
 				width: 400px;
 				max-width: 90vw;
 			}
-			.confirm-message {
+			.modal.mod-confirm .confirm-message {
 				margin: 20px 0;
 			}
-			.confirm-message p {
+			.modal.mod-confirm .confirm-message p {
 				margin: 10px 0;
 				color: var(--text-normal);
 			}
-			.confirm-buttons {
+			.modal.mod-confirm .confirm-buttons {
 				display: flex;
 				gap: 10px;
 				justify-content: flex-end;
 				margin-top: 20px;
 			}
-			.confirm-buttons button {
+			.modal.mod-confirm .confirm-buttons button {
 				padding: 8px 16px;
 				border: none;
 				border-radius: 4px;
 				cursor: pointer;
 			}
-			.confirm-buttons .mod-cancel {
+			.modal.mod-confirm .confirm-buttons .mod-cancel {
 				background: var(--interactive-normal);
 				color: var(--text-normal);
 			}
-			.confirm-buttons .mod-cancel:hover {
+			.modal.mod-confirm .confirm-buttons .mod-cancel:hover {
 				background: var(--interactive-hover);
 			}
-			.confirm-buttons .mod-cta.mod-warning {
+			.modal.mod-confirm .confirm-buttons .mod-cta.mod-warning {
 				background: var(--color-red);
 				color: white;
 			}
-			.confirm-buttons .mod-cta.mod-warning:hover {
+			.modal.mod-confirm .confirm-buttons .mod-cta.mod-warning:hover {
 				background: var(--color-red);
 				opacity: 0.8;
 			}
 		`;
-		document.head.appendChild(style);
+		// Append style to modal element instead of document.head to limit scope
+		// This helps prevent conflicts with other plugins
+		this.modalEl.appendChild(style);
 
 		// Focus the cancel button by default
 		cancelBtn.focus();
@@ -2072,18 +2101,6 @@ class ConfirmModal extends Modal {
 	}
 
 	onClose() {
-		// Clean up styles
-		const existingStyle = document.getElementById('confirm-modal-styles');
-		if (existingStyle) {
-			existingStyle.remove();
-		}
-		
-		// Also clean up any old styles that might have been created without ID
-		const styles = document.querySelectorAll('style');
-		styles.forEach(style => {
-			if (style.textContent?.includes('.confirm-')) {
-				style.remove();
-			}
-		});
+		// Styles are now in modal element, so they get cleaned up automatically
 	}
 }

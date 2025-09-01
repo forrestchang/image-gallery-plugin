@@ -1,0 +1,78 @@
+/* Image Gallery Plugin Modal Styles with Isolation */
+
+/* Use CSS layers to prevent conflicts with other plugins */
+@layer image-gallery-plugin {
+  /* Image Preview Modal Styles */
+  .modal.mod-image-preview {
+    width: 90vw !important;
+    max-width: 90vw !important;
+    height: 90vh !important;
+    max-height: 90vh !important;
+  }
+  
+  .modal.mod-image-preview .modal-content {
+    max-width: none !important;
+    height: 100% !important;
+    padding: 16px !important;
+  }
+  
+  .modal.mod-image-preview .image-preview-container {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    gap: 8px !important;
+  }
+  
+  /* Reset any global styles that might be inherited */
+  .modal.mod-image-preview * {
+    all: revert;
+    box-sizing: border-box !important;
+  }
+  
+  /* Image Gallery Modal Styles */
+  .modal.mod-image-gallery {
+    width: 80vw !important;
+    max-width: 80vw !important;
+  }
+  
+  .modal.mod-image-gallery .modal-content {
+    max-width: none !important;
+  }
+  
+  /* Reset any global styles for gallery modal */
+  .modal.mod-image-gallery * {
+    all: revert;
+    box-sizing: border-box !important;
+  }
+  
+  /* OCR Debug Modal Styles */
+  .modal.mod-ocr-debug {
+    width: 80vw !important;
+    max-width: 900px !important;
+    height: 80vh !important;
+  }
+  
+  .modal.mod-ocr-debug .modal-content {
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  
+  /* Reset any global styles for OCR modal */
+  .modal.mod-ocr-debug * {
+    all: revert;
+    box-sizing: border-box !important;
+  }
+  
+  /* Confirm Modal Styles */
+  .modal.mod-confirm {
+    width: 400px !important;
+    max-width: 90vw !important;
+  }
+  
+  /* Reset any global styles for confirm modal */
+  .modal.mod-confirm * {
+    all: revert;
+    box-sizing: border-box !important;
+  }
+}

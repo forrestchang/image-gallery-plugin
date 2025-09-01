@@ -1,0 +1,44 @@
+/* Reset styles to prevent conflicts with other plugins (especially Tailwind-based ones) */
+
+/* Reset all inherited CSS custom properties and styles for our modals */
+.modal.mod-image-preview,
+.modal.mod-image-gallery,
+.modal.mod-ocr-debug,
+.modal.mod-confirm {
+  /* Reset all inherited styles */
+  all: revert;
+  
+  /* Reset all CSS custom properties that might be injected by other plugins */
+  --tw-border-spacing-x: initial;
+  --tw-border-spacing-y: initial;
+  --tw-translate-x: initial;
+  --tw-translate-y: initial;
+  --tw-rotate: initial;
+  --tw-skew-x: initial;
+  --tw-skew-y: initial;
+  --tw-scale-x: initial;
+  --tw-scale-y: initial;
+  
+  /* Ensure our modals use standard box model */
+  box-sizing: border-box !important;
+}
+
+/* Reset all children elements to prevent Tailwind interference */
+.modal.mod-image-preview *,
+.modal.mod-image-gallery *,
+.modal.mod-ocr-debug *,
+.modal.mod-confirm * {
+  /* Reset Tailwind custom properties */
+  --tw-border-spacing-x: initial;
+  --tw-border-spacing-y: initial;
+  --tw-translate-x: initial;
+  --tw-translate-y: initial;
+  --tw-rotate: initial;
+  --tw-skew-x: initial;
+  --tw-skew-y: initial;
+  --tw-scale-x: initial;
+  --tw-scale-y: initial;
+  
+  /* Use standard box model */
+  box-sizing: border-box !important;
+}
