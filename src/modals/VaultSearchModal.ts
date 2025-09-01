@@ -696,34 +696,58 @@ export class VaultSearchModal extends Modal {
 	 * Highlight search terms in the editor
 	 */
 	private highlightSearchTermsInEditor(editor: any, terms: string[]) {
-		// Clear existing highlights
-		editor.removeHighlight();
+		if (!editor || !terms || terms.length === 0) return;
 		
-		if (!terms || terms.length === 0) return;
-		
-		// Highlight each term
-		for (const term of terms) {
-			if (term.length < 2) continue;
+		try {
+			// Clear existing highlights - try different methods for compatibility
+			if (typeof editor.removeHighlight === 'function') {
+				editor.removeHighlight();
+			} else if (typeof editor.clearHighlights === 'function') {
+				editor.clearHighlights();
+			}
 			
-			const content = editor.getValue();
-			const regex = new RegExp(this.escapeRegex(term), 'gi');
-			let match;
-			
-			while ((match = regex.exec(content)) !== null) {
-				const from = editor.offsetToPos(match.index);
-				const to = editor.offsetToPos(match.index + match[0].length);
+			// Highlight each term
+			for (const term of terms) {
+				if (term.length < 2) continue;
 				
-				// Add highlight
-				editor.addHighlight(from, to, 'search-highlight');
+				const content = editor.getValue();
+				const regex = new RegExp(this.escapeRegex(term), 'gi');
+				let match;
+				
+				while ((match = regex.exec(content)) !== null) {
+					try {
+						const from = editor.offsetToPos(match.index);
+						const to = editor.offsetToPos(match.index + match[0].length);
+						
+						// Add highlight - try different methods for compatibility
+						if (typeof editor.addHighlight === 'function') {
+							editor.addHighlight(from, to, 'search-highlight');
+						} else if (typeof editor.markText === 'function') {
+							editor.markText(from, to, { className: 'search-highlight' });
+						}
+					} catch (highlightError) {
+						console.warn('Failed to add highlight for term:', term, highlightError);
+					}
+				}
 			}
+			
+			// Remove highlights after 3 seconds
+			setTimeout(() => {
+				if (editor) {
+					try {
+						if (typeof editor.removeHighlight === 'function') {
+							editor.removeHighlight('search-highlight');
+						} else if (typeof editor.clearHighlights === 'function') {
+							editor.clearHighlights();
+						}
+					} catch (clearError) {
+						console.warn('Failed to clear highlights:', clearError);
+					}
+				}
+			}, 3000);
+		} catch (error) {
+			console.warn('Failed to highlight search terms:', error);
 		}
-		
-		// Remove highlights after 3 seconds
-		setTimeout(() => {
-			if (editor) {
-				editor.removeHighlight('search-highlight');
-			}
-		}, 3000);
 	}
 
 	/**
