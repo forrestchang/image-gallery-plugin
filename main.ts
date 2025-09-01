@@ -140,7 +140,7 @@ export default class ImageGalleryPlugin extends Plugin {
 	}
 
 	openVaultSearch() {
-		new VaultSearchModal(this.app).open();
+		new VaultSearchModal(this.app, this.ocrService).open();
 	}
 
 	async getAllImages(): Promise<ImageInfo[]> {

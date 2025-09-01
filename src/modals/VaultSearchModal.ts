@@ -1,6 +1,7 @@
 import { Modal, App, TFile, TextComponent, ButtonComponent, Notice, MarkdownView } from 'obsidian';
 import { StyleManager } from '../styles/styleManager';
 import { ImageGallerySettings } from '../types';
+import { OCRService } from '../../ocr-service';
 
 interface BlockSearchResult {
 	file: TFile;
@@ -11,6 +12,8 @@ interface BlockSearchResult {
 	score: number;
 	context: string;
 	isTitle: boolean;
+	isImage?: boolean;
+	imagePreview?: string;
 }
 
 export class VaultSearchModal extends Modal {
@@ -25,9 +28,12 @@ export class VaultSearchModal extends Modal {
 	private hoveredResultIndex: number = -1;
 	private static lastSearchQuery: string = '';
 	private settings: ImageGallerySettings;
-	constructor(app: App) {
+	private ocrService: OCRService;
+	
+	constructor(app: App, ocrService: OCRService) {
 		super(app);
 		this.styleManager = new StyleManager();
+		this.ocrService = ocrService;
 		
 		// Get plugin settings
 		const plugin = (this.app as any).plugins.getPlugin('image-gallery-plugin');
@@ -334,6 +340,81 @@ export class VaultSearchModal extends Modal {
 	}
 
 	/**
+	 * Search images by OCR content
+	 */
+	private async searchImages(query: string): Promise<BlockSearchResult[]> {
+		if (!query.trim() || query.trim().length < 2) {
+			return [];
+		}
+
+		const results: BlockSearchResult[] = [];
+		const imagePaths = this.ocrService.searchImages(query);
+		
+		// Get all image files
+		const imageFiles = this.app.vault.getFiles().filter(file => {
+			const ext = file.extension.toLowerCase();
+			return ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'].includes(ext);
+		});
+
+		for (const imagePath of imagePaths) {
+			const imageFile = imageFiles.find(file => file.path === imagePath);
+			if (!imageFile || this.isFileExcluded(imageFile)) {
+				continue;
+			}
+
+			// Get OCR result for context
+			const ocrResult = this.ocrService.getCachedResult(imagePath);
+			if (!ocrResult) {
+				continue;
+			}
+
+			// Create image preview URL
+			const imagePreview = this.app.vault.adapter.getResourcePath(imagePath);
+
+			// Calculate score based on OCR content relevance
+			const score = this.calculateImageScore(ocrResult.text, this.currentSearchTerms) + 500; // Bonus for images
+
+			results.push({
+				file: imageFile,
+				blockContent: `Image: ${ocrResult.text || 'No text detected'}`,
+				blockStartLine: 0,
+				blockEndLine: 0,
+				matchedTerms: this.currentSearchTerms,
+				score,
+				context: ocrResult.context?.nearbyContent || '',
+				isTitle: false,
+				isImage: true,
+				imagePreview
+			});
+		}
+
+		return results;
+	}
+
+	/**
+	 * Calculate relevance score for image OCR content
+	 */
+	private calculateImageScore(ocrText: string, terms: string[]): number {
+		const textLower = ocrText.toLowerCase();
+		let score = 0;
+		
+		for (const term of terms) {
+			const termMatches = (textLower.match(new RegExp(this.escapeRegex(term), 'g')) || []).length;
+			score += termMatches * 20; // Base score for OCR matches
+		}
+		
+		// Bonus for shorter OCR text (more focused)
+		const textLength = ocrText.length;
+		if (textLength > 0 && textLength < 100) {
+			score += 30;
+		} else if (textLength < 300) {
+			score += 15;
+		}
+		
+		return score;
+	}
+
+	/**
 	 * Search vault content at block level
 	 */
 	private async searchVaultContent(query: string) {
@@ -390,6 +471,10 @@ export class VaultSearchModal extends Modal {
 		
 		// Get all markdown files and filter out excluded folders
 		const files = this.app.vault.getMarkdownFiles().filter(file => !this.isFileExcluded(file));
+		
+		// Search images using OCR
+		const imageResults = await this.searchImages(trimmedQuery);
+		results.push(...imageResults);
 		
 		for (const file of files) {
 			try {
@@ -527,6 +612,15 @@ export class VaultSearchModal extends Modal {
 		if (this.selectedResultIndex >= 0 && this.selectedResultIndex < this.searchResults.length) {
 			const result = this.searchResults[this.selectedResultIndex];
 			
+			// Handle image results differently
+			if (result.isImage) {
+				// Open image file directly or in image gallery
+				const leaf = this.app.workspace.getLeaf('tab');
+				await leaf.openFile(result.file);
+				this.close();
+				return;
+			}
+			
 			// Open file in new tab and navigate to line
 			const leaf = this.app.workspace.getLeaf('tab');
 			await leaf.openFile(result.file);
@@ -638,8 +732,10 @@ export class VaultSearchModal extends Modal {
 		this.searchMetadataEl.empty();
 		
 		if (this.searchResults.length > 0) {
-			// Count unique files
+			// Count unique files and image results
 			const uniqueFiles = new Set(this.searchResults.map(r => r.file.path)).size;
+			const imageResults = this.searchResults.filter(r => r.isImage).length;
+			const blockResults = this.searchResults.length - imageResults;
 			
 			// Get search type
 			const currentQuery = this.searchInput?.value || '';
@@ -650,7 +746,10 @@ export class VaultSearchModal extends Modal {
 				const taskType = specialCommand.isTodo ? 'TODO' : 'DONE';
 				metadataText = `${this.searchResults.length} ${taskType} items in ${uniqueFiles} files`;
 			} else {
-				metadataText = `${this.searchResults.length} blocks in ${uniqueFiles} files`;
+				const parts = [];
+				if (blockResults > 0) parts.push(`${blockResults} blocks`);
+				if (imageResults > 0) parts.push(`${imageResults} images`);
+				metadataText = `${parts.join(', ')} in ${uniqueFiles} files`;
 			}
 			
 			if (this.currentSearchTerms.length > 0) {
@@ -725,9 +824,16 @@ export class VaultSearchModal extends Modal {
 			// Check if any result is a file name match
 			const hasFileNameMatch = fileResults.some(r => r.blockContent.startsWith('File: '));
 			
+			// Check if this file group contains image results
+			const hasImageResults = fileResults.some(r => r.isImage);
+			
 			// File header (only once per file)
+			let headerClass = 'search-file-header';
+			if (hasFileNameMatch) headerClass += ' file-name-match';
+			if (hasImageResults) headerClass += ' image-file';
+			
 			const fileHeader = fileGroup.createEl('div', {
-				cls: hasFileNameMatch ? 'search-file-header file-name-match' : 'search-file-header'
+				cls: headerClass
 			});
 			
 			const fileName = fileHeader.createEl('span', {
@@ -818,9 +924,35 @@ export class VaultSearchModal extends Modal {
 				
 				// Block content
 				const blockContentEl = blockItem.createEl('div', {
-					cls: 'search-block-content'
+					cls: result.isImage ? 'search-block-content search-image-content' : 'search-block-content'
 				});
-				blockContentEl.innerHTML = this.highlightTerms(result.blockContent);
+				
+				// Add image preview if this is an image result
+				if (result.isImage && result.imagePreview) {
+					const imagePreviewEl = blockContentEl.createEl('div', {
+						cls: 'search-image-preview'
+					});
+					
+					const imageEl = imagePreviewEl.createEl('img', {
+						cls: 'search-image-thumbnail'
+					});
+					imageEl.src = result.imagePreview;
+					
+					const textEl = blockContentEl.createEl('div', {
+						cls: 'search-image-text'
+					});
+					textEl.innerHTML = this.highlightTerms(result.blockContent);
+					
+					// Add context if available
+					if (result.context) {
+						const contextEl = blockContentEl.createEl('div', {
+							cls: 'search-image-context',
+							text: `Context: ${result.context}`
+						});
+					}
+				} else {
+					blockContentEl.innerHTML = this.highlightTerms(result.blockContent);
+				}
 			}
 		}
 		
@@ -860,7 +992,7 @@ export class VaultSearchModal extends Modal {
 		
 		this.searchInput = document.createElement('input');
 		this.searchInput.type = 'text';
-		this.searchInput.placeholder = 'Search blocks... (min 2 chars, or type TODO/DONE)';
+		this.searchInput.placeholder = 'Search blocks and images... (min 2 chars, or type TODO/DONE)';
 		this.searchInput.className = 'custom-search-input';
 		searchInputContainer.appendChild(this.searchInput);
 		
@@ -937,7 +1069,7 @@ export class VaultSearchModal extends Modal {
 		// Help text (hidden in minimal mode)
 		if (!this.settings?.searchMinimalMode) {
 			const helpText = searchHeader.createEl('div', {
-				text: 'Block search (2+ chars): Use spaces for multiple words, "quotes" for exact phrases. Type TODO/DONE for task items.',
+				text: 'Search blocks and images (2+ chars): Use spaces for multiple words, "quotes" for exact phrases. Type TODO/DONE for task items.',
 				cls: 'search-help-text'
 			});
 		}
@@ -1203,6 +1335,52 @@ export class VaultSearchModal extends Modal {
 				background: transparent !important;
 				color: var(--text-accent) !important;
 				font-weight: 500 !important;
+			}
+			
+			/* Image search result styles */
+			[data-vault-search-modal="true"] .search-image-content {
+				display: flex !important;
+				gap: 12px !important;
+				align-items: flex-start !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-preview {
+				flex-shrink: 0 !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-thumbnail {
+				width: 80px !important;
+				height: 80px !important;
+				object-fit: cover !important;
+				border-radius: 4px !important;
+				border: 1px solid var(--background-modifier-border) !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-text {
+				flex: 1 !important;
+				font-size: 13px !important;
+				color: var(--text-muted) !important;
+				line-height: 1.4 !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-context {
+				font-size: 11px !important;
+				color: var(--text-faint) !important;
+				margin-top: 4px !important;
+				font-style: italic !important;
+				max-height: 40px !important;
+				overflow: hidden !important;
+				text-overflow: ellipsis !important;
+			}
+			
+			/* Image result file header styling */
+			[data-vault-search-modal="true"] .search-file-header.image-file .search-file-name {
+				color: var(--color-orange) !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-file-header.image-file::before {
+				content: "🖼️ " !important;
+				font-size: 12px !important;
 			}
 		`;
 		
