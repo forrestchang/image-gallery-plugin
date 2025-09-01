@@ -39,6 +39,8 @@ export class VaultSearchModal extends Modal {
 	private static lastSearchQuery: string = '';
 	private settings: ImageGallerySettings;
 	private ocrService: OCRService;
+	private includeImageResults: boolean = true;
+	private imageToggleEl: HTMLElement;
 	
 	constructor(app: App, private plugin: any) {
 		super(app);
@@ -515,11 +517,15 @@ export class VaultSearchModal extends Modal {
 		// Get all markdown files and filter out excluded folders
 		const files = this.app.vault.getMarkdownFiles().filter(file => !this.isFileExcluded(file));
 		
-		// Search images using OCR
-		console.log('=== Calling searchImages with query:', trimmedQuery);
-		const imageResults = await this.searchImages(trimmedQuery);
-		console.log('=== searchImages returned', imageResults.length, 'results');
-		results.push(...imageResults);
+		// Search images using OCR if enabled
+		if (this.includeImageResults) {
+			console.log('=== Calling searchImages with query:', trimmedQuery);
+			const imageResults = await this.searchImages(trimmedQuery);
+			console.log('=== searchImages returned', imageResults.length, 'results');
+			results.push(...imageResults);
+		} else {
+			console.log('=== Image search disabled, skipping image results');
+		}
 		
 		for (const file of files) {
 			try {
@@ -1142,6 +1148,34 @@ export class VaultSearchModal extends Modal {
 			}
 		});
 		
+		// Image search toggle
+		const toggleContainer = searchHeader.createEl('div', {
+			cls: 'search-options-container'
+		});
+		
+		this.imageToggleEl = toggleContainer.createEl('label', {
+			cls: 'search-image-toggle'
+		});
+		
+		const checkbox = this.imageToggleEl.createEl('input', {
+			type: 'checkbox'
+		});
+		checkbox.checked = this.includeImageResults;
+		
+		const toggleText = this.imageToggleEl.createEl('span', {
+			text: '🖼️ Include image results',
+			cls: 'search-toggle-text'
+		});
+		
+		// Handle toggle change
+		checkbox.addEventListener('change', async (e) => {
+			this.includeImageResults = (e.target as HTMLInputElement).checked;
+			// Re-trigger search if there's a query
+			if (this.searchInput?.value?.trim()) {
+				await this.searchVaultContent(this.searchInput.value);
+			}
+		});
+
 		// Search metadata display
 		this.searchMetadataEl = searchHeader.createEl('div', {
 			cls: 'search-metadata'
@@ -1290,6 +1324,42 @@ export class VaultSearchModal extends Modal {
 				font-size: 12px !important;
 				color: var(--text-muted) !important;
 				font-style: italic !important;
+			}
+			
+			/* Search options container */
+			[data-vault-search-modal="true"] .search-options-container {
+				margin: 8px 0 !important;
+				display: flex !important;
+				align-items: center !important;
+				gap: 12px !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-toggle {
+				display: flex !important;
+				align-items: center !important;
+				gap: 6px !important;
+				cursor: pointer !important;
+				user-select: none !important;
+				padding: 4px 8px !important;
+				border-radius: 4px !important;
+				transition: background-color 0.2s ease !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-toggle:hover {
+				background: var(--background-modifier-hover) !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-image-toggle input[type="checkbox"] {
+				margin: 0 !important;
+				cursor: pointer !important;
+				accent-color: var(--interactive-accent) !important;
+			}
+			
+			[data-vault-search-modal="true"] .search-toggle-text {
+				font-size: 12px !important;
+				color: var(--text-normal) !important;
+				font-weight: 500 !important;
+				cursor: pointer !important;
 			}
 			
 			/* Results container */
