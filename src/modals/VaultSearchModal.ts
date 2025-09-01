@@ -1023,22 +1023,7 @@ export class VaultSearchModal extends Modal {
 						});
 					}
 					
-					// Context information
-					if (result.context) {
-						const contextSection = contentAreaEl.createEl('div', {
-							cls: 'search-image-context-section'
-						});
-						
-						const contextLabel = contextSection.createEl('div', {
-							cls: 'search-image-context-label',
-							text: 'Context:'
-						});
-						
-						const contextText = contextSection.createEl('div', {
-							cls: 'search-image-context-text',
-							text: result.context
-						});
-					}
+					// Context section removed for cleaner interface
 					
 					// File info
 					const fileInfo = contentAreaEl.createEl('div', {
@@ -1501,30 +1486,6 @@ export class VaultSearchModal extends Modal {
 				padding: 6px 8px !important;
 			}
 			
-			[data-vault-search-modal="true"] .search-image-context-section {
-				margin-top: 8px !important;
-			}
-			
-			[data-vault-search-modal="true"] .search-image-context-label {
-				font-size: 10px !important;
-				font-weight: 500 !important;
-				color: var(--text-muted) !important;
-				margin-bottom: 3px !important;
-				text-transform: uppercase !important;
-				letter-spacing: 0.5px !important;
-			}
-			
-			[data-vault-search-modal="true"] .search-image-context-text {
-				font-size: 11px !important;
-				color: var(--text-faint) !important;
-				line-height: 1.3 !important;
-				max-height: 45px !important;
-				overflow: hidden !important;
-				text-overflow: ellipsis !important;
-				background: var(--background-primary) !important;
-				padding: 4px 6px !important;
-				border-radius: 3px !important;
-			}
 			
 			[data-vault-search-modal="true"] .search-image-file-info {
 				font-size: 11px !important;
