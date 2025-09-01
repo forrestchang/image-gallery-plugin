@@ -350,7 +350,9 @@ export class VaultSearchModal extends Modal {
 	 * Search images by OCR content
 	 */
 	private async searchImages(query: string): Promise<BlockSearchResult[]> {
+		console.log('🖼️ searchImages function called with query:', query);
 		if (!query.trim() || query.trim().length < 2) {
+			console.log('🖼️ searchImages: query too short, returning empty');
 			return [];
 		}
 
@@ -438,6 +440,7 @@ export class VaultSearchModal extends Modal {
 	 * Search vault content at block level
 	 */
 	private async searchVaultContent(query: string) {
+		console.log('=== Search+ searchVaultContent called with query:', query);
 		const trimmedQuery = query.trim();
 		
 		if (!trimmedQuery) {
@@ -493,7 +496,9 @@ export class VaultSearchModal extends Modal {
 		const files = this.app.vault.getMarkdownFiles().filter(file => !this.isFileExcluded(file));
 		
 		// Search images using OCR
+		console.log('=== Calling searchImages with query:', trimmedQuery);
 		const imageResults = await this.searchImages(trimmedQuery);
+		console.log('=== searchImages returned', imageResults.length, 'results');
 		results.push(...imageResults);
 		
 		for (const file of files) {
