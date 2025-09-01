@@ -682,9 +682,6 @@ export class VaultSearchModal extends Modal {
 					const lineNumber = Math.max(0, result.blockStartLine - 1); // Convert to 0-based
 					view.editor.setCursor({ line: lineNumber, ch: 0 });
 					view.editor.scrollIntoView({ from: { line: lineNumber, ch: 0 }, to: { line: lineNumber, ch: 0 } }, true);
-					
-					// Highlight the search terms in the editor
-					this.highlightSearchTermsInEditor(view.editor, this.currentSearchTerms);
 				}
 			}
 			
@@ -692,63 +689,6 @@ export class VaultSearchModal extends Modal {
 		}
 	}
 
-	/**
-	 * Highlight search terms in the editor
-	 */
-	private highlightSearchTermsInEditor(editor: any, terms: string[]) {
-		if (!editor || !terms || terms.length === 0) return;
-		
-		try {
-			// Clear existing highlights - try different methods for compatibility
-			if (typeof editor.removeHighlight === 'function') {
-				editor.removeHighlight();
-			} else if (typeof editor.clearHighlights === 'function') {
-				editor.clearHighlights();
-			}
-			
-			// Highlight each term
-			for (const term of terms) {
-				if (term.length < 2) continue;
-				
-				const content = editor.getValue();
-				const regex = new RegExp(this.escapeRegex(term), 'gi');
-				let match;
-				
-				while ((match = regex.exec(content)) !== null) {
-					try {
-						const from = editor.offsetToPos(match.index);
-						const to = editor.offsetToPos(match.index + match[0].length);
-						
-						// Add highlight - try different methods for compatibility
-						if (typeof editor.addHighlight === 'function') {
-							editor.addHighlight(from, to, 'search-highlight');
-						} else if (typeof editor.markText === 'function') {
-							editor.markText(from, to, { className: 'search-highlight' });
-						}
-					} catch (highlightError) {
-						console.warn('Failed to add highlight for term:', term, highlightError);
-					}
-				}
-			}
-			
-			// Remove highlights after 3 seconds
-			setTimeout(() => {
-				if (editor) {
-					try {
-						if (typeof editor.removeHighlight === 'function') {
-							editor.removeHighlight('search-highlight');
-						} else if (typeof editor.clearHighlights === 'function') {
-							editor.clearHighlights();
-						}
-					} catch (clearError) {
-						console.warn('Failed to clear highlights:', clearError);
-					}
-				}
-			}, 3000);
-		} catch (error) {
-			console.warn('Failed to highlight search terms:', error);
-		}
-	}
 
 	/**
 	 * Highlight search terms in text
@@ -938,15 +878,6 @@ export class VaultSearchModal extends Modal {
 				// Open file in new tab
 				const leaf = this.app.workspace.getLeaf('tab');
 				await leaf.openFile(fileResults[0].file);
-				
-				// If there are search terms, highlight them in the editor
-				if (this.currentSearchTerms.length > 0) {
-					const view = leaf.view as MarkdownView;
-					if (view && view.editor) {
-						this.highlightSearchTermsInEditor(view.editor, this.currentSearchTerms);
-					}
-				}
-				
 				this.close();
 			});
 			
