@@ -390,12 +390,15 @@ export class VaultSearchModal extends Modal {
 				// Create image preview URL using the correct vault method
 				const imagePreview = this.app.vault.getResourcePath(imageInfo.file);
 
+				// Format OCR text by joining lines with spaces
+				const formattedOcrText = this.formatOcrText(ocrResult.text);
+				
 				// Calculate score based on OCR content relevance
 				const score = this.calculateImageScore(ocrResult.text, this.currentSearchTerms) + 500; // Bonus for images
 
 				results.push({
 					file: imageInfo.file,
-					blockContent: ocrResult.text || 'No text detected',
+					blockContent: formattedOcrText || 'No text detected',
 					blockStartLine: 0,
 					blockEndLine: 0,
 					matchedTerms: this.currentSearchTerms,
@@ -411,6 +414,23 @@ export class VaultSearchModal extends Modal {
 		}
 
 		return results;
+	}
+
+	/**
+	 * Format OCR text by joining lines with spaces and cleaning up
+	 */
+	private formatOcrText(ocrText: string): string {
+		if (!ocrText || ocrText.trim() === '') {
+			return '';
+		}
+		
+		// Split by newlines and filter out empty lines
+		const lines = ocrText.split('\n')
+			.map(line => line.trim())
+			.filter(line => line.length > 0);
+		
+		// Join with spaces and clean up multiple spaces
+		return lines.join(' ').replace(/\s+/g, ' ').trim();
 	}
 
 	/**
