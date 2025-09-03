@@ -20,6 +20,7 @@ interface ImageGallerySettings {
 	searchExcludeFolders: string[];
 	searchMinimalMode: boolean;
 	searchIncludeImages: boolean;
+	galleryCardSize: number;
 }
 
 const DEFAULT_SETTINGS: ImageGallerySettings = {
@@ -29,7 +30,8 @@ const DEFAULT_SETTINGS: ImageGallerySettings = {
 	enableFolderFilter: true,
 	searchExcludeFolders: [],
 	searchMinimalMode: false,
-	searchIncludeImages: true
+	searchIncludeImages: true,
+	galleryCardSize: 200
 }
 
 export default class ImageGalleryPlugin extends Plugin {
@@ -865,6 +867,7 @@ class ImageGalleryModal extends Modal {
 	indexStatusEl: HTMLElement;
 	private searchTimeout?: NodeJS.Timeout;
 	private settings: ImageGallerySettings;
+	private currentCardSize: number;
 
 	constructor(app: App, images: ImageInfo[], ocrService: OCRService) {
 		super(app);
@@ -876,6 +879,7 @@ class ImageGalleryModal extends Modal {
 		// Get plugin settings
 		const plugin = (this.app as any).plugins.getPlugin('image-gallery-plugin');
 		this.settings = plugin?.settings || DEFAULT_SETTINGS;
+		this.currentCardSize = this.settings.galleryCardSize || 200;
 		
 		this.sortImages('created-new');
 	}
@@ -1135,6 +1139,19 @@ class ImageGalleryModal extends Modal {
 		}
 	}
 
+	updateCardSize() {
+		// Update CSS variable for card size
+		if (this.galleryContainer) {
+			this.galleryContainer.style.setProperty('--card-size', `${this.currentCardSize}px`);
+		}
+		
+		// Update all image heights
+		const images = this.galleryContainer.querySelectorAll('.image-gallery-item img');
+		images.forEach((img: HTMLElement) => {
+			img.style.height = `${this.currentCardSize}px`;
+		});
+	}
+
 	async performIncrementalUpdate() {
 		try {
 			// Get plugin settings for concurrency
@@ -1321,8 +1338,46 @@ class ImageGalleryModal extends Modal {
 			this.populateFolderOptions();
 		}
 		
-		// Right section: Sort dropdown
-		const sortSection = headerContainer.createDiv({ cls: 'sort-section' });
+		// Right section: Card size slider and Sort dropdown
+		const rightSection = headerContainer.createDiv({ cls: 'right-section' });
+		
+		// Card size controls
+		const cardSizeContainer = rightSection.createDiv({ cls: 'card-size-container' });
+		cardSizeContainer.createEl('span', { text: '📐', cls: 'card-size-icon', title: 'Card Size' });
+		
+		// Card size slider
+		const slider = cardSizeContainer.createEl('input', {
+			type: 'range',
+			cls: 'card-size-slider'
+		});
+		slider.min = '100';
+		slider.max = '400';
+		slider.step = '20';
+		slider.value = this.currentCardSize.toString();
+		
+		// Card size value display
+		const sizeDisplay = cardSizeContainer.createEl('span', { 
+			text: `${this.currentCardSize}px`,
+			cls: 'card-size-value'
+		});
+		
+		// Update card size on slider change
+		slider.addEventListener('input', (e) => {
+			const newSize = parseInt((e.target as HTMLInputElement).value);
+			this.currentCardSize = newSize;
+			sizeDisplay.textContent = `${newSize}px`;
+			this.updateCardSize();
+			
+			// Save preference to settings
+			const plugin = (this.app as any).plugins.getPlugin('image-gallery-plugin');
+			if (plugin) {
+				plugin.settings.galleryCardSize = newSize;
+				plugin.saveSettings();
+			}
+		});
+		
+		// Sort dropdown
+		const sortSection = rightSection.createDiv({ cls: 'sort-section' });
 		const dropdown = new DropdownComponent(sortSection);
 		dropdown.addOption('name-asc', 'Name (A-Z)');
 		dropdown.addOption('name-desc', 'Name (Z-A)');
@@ -1417,6 +1472,31 @@ class ImageGalleryModal extends Modal {
 				font-size: 12px;
 				min-width: 120px;
 			}
+			.modal.mod-image-gallery .right-section {
+				display: flex;
+				align-items: center;
+				gap: 12px;
+				flex-shrink: 0;
+			}
+			.modal.mod-image-gallery .card-size-container {
+				display: flex;
+				align-items: center;
+				gap: 6px;
+			}
+			.modal.mod-image-gallery .card-size-icon {
+				font-size: 14px;
+				cursor: help;
+			}
+			.modal.mod-image-gallery .card-size-slider {
+				width: 100px;
+				cursor: pointer;
+			}
+			.modal.mod-image-gallery .card-size-value {
+				font-size: 11px;
+				color: var(--text-muted);
+				min-width: 40px;
+				text-align: right;
+			}
 			.modal.mod-image-gallery .sort-section {
 				flex-shrink: 0;
 				display: flex;
@@ -1439,11 +1519,12 @@ class ImageGalleryModal extends Modal {
 			}
 			.modal.mod-image-gallery .image-gallery-container {
 				display: grid;
-				grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+				grid-template-columns: repeat(auto-fill, minmax(var(--card-size, 200px), 1fr));
 				gap: 15px;
 				padding: 10px 0 15px 0;
 				max-height: 75vh;
 				overflow-y: auto;
+				--card-size: ${this.currentCardSize}px;
 			}
 			.modal.mod-image-gallery .image-gallery-stats {
 				display: flex;
@@ -1474,7 +1555,7 @@ class ImageGalleryModal extends Modal {
 			}
 			.modal.mod-image-gallery .image-gallery-item img {
 				width: 100%;
-				height: 200px;
+				height: var(--card-size, 200px);
 				object-fit: cover;
 				display: block;
 			}
@@ -1511,6 +1592,9 @@ class ImageGalleryModal extends Modal {
 		
 		// Initial render of gallery
 		this.renderGallery();
+		
+		// Apply initial card size
+		this.updateCardSize();
 	}
 
 	onClose() {
@@ -1854,6 +1938,18 @@ class ImageGallerySettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.enableFolderFilter)
 				.onChange(async (value) => {
 					this.plugin.settings.enableFolderFilter = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Default Gallery Card Size')
+			.setDesc('Default size for image cards in the gallery view (in pixels). You can also adjust this with the slider in the gallery window.')
+			.addSlider(slider => slider
+				.setLimits(100, 400, 20)
+				.setValue(this.plugin.settings.galleryCardSize)
+				.setDynamicTooltip()
+				.onChange(async (value) => {
+					this.plugin.settings.galleryCardSize = value;
 					await this.plugin.saveSettings();
 				}));
 
