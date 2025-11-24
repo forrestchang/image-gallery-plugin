@@ -1133,7 +1133,19 @@ export class VaultSearchModal extends Modal {
 	}
 
 	private addModalStyles() {
+		const baseFontSize = Math.max(10, Math.min(this.settings?.searchResultFontSize ?? 13, 28));
+		const titleFontSize = Math.max(10, Math.min(baseFontSize + 1, 30));
+		const metaFontSize = Math.max(9, Math.min(baseFontSize - 1, 26));
+		const smallFontSize = Math.max(9, Math.min(baseFontSize - 2, 24));
+
 		const styles = `
+			[data-vault-search-modal="true"] {
+				--vault-search-result-font-size: ${baseFontSize}px;
+				--vault-search-result-font-size-title: ${titleFontSize}px;
+				--vault-search-result-font-size-meta: ${metaFontSize}px;
+				--vault-search-result-font-size-small: ${smallFontSize}px;
+			}
+
 			[data-vault-search-modal="true"].modal.mod-vault-search {
 				width: 80vw !important;
 				max-width: 1000px !important;
@@ -1305,7 +1317,7 @@ export class VaultSearchModal extends Modal {
 			[data-vault-search-modal="true"] .search-file-name {
 				font-weight: 600 !important;
 				color: var(--text-normal) !important;
-				font-size: 13px !important;
+				font-size: var(--vault-search-result-font-size-title) !important;
 			}
 			
 			/* File name match - subtle highlight */
@@ -1316,12 +1328,12 @@ export class VaultSearchModal extends Modal {
 			[data-vault-search-modal="true"] .search-file-separator {
 				color: var(--text-muted) !important;
 				opacity: 0.4 !important;
-				font-size: 12px !important;
+				font-size: var(--vault-search-result-font-size-meta) !important;
 			}
 			
 			[data-vault-search-modal="true"] .search-file-time {
 				color: var(--text-muted) !important;
-				font-size: 12px !important;
+				font-size: var(--vault-search-result-font-size-meta) !important;
 				opacity: 0.6 !important;
 			}
 			
@@ -1364,7 +1376,7 @@ export class VaultSearchModal extends Modal {
 			
 			/* Block content - clean text */
 			[data-vault-search-modal="true"] .search-block-content {
-				font-size: 13px !important;
+				font-size: var(--vault-search-result-font-size) !important;
 				color: var(--text-muted) !important;
 				line-height: 1.6 !important;
 				white-space: pre-wrap !important;
@@ -1421,7 +1433,7 @@ export class VaultSearchModal extends Modal {
 			}
 			
 			[data-vault-search-modal="true"] .search-image-ocr-label {
-				font-size: 11px !important;
+				font-size: var(--vault-search-result-font-size-meta) !important;
 				font-weight: 600 !important;
 				color: var(--text-accent) !important;
 				margin-bottom: 3px !important;
@@ -1430,7 +1442,7 @@ export class VaultSearchModal extends Modal {
 			}
 			
 			[data-vault-search-modal="true"] .search-image-ocr-text {
-				font-size: 13px !important;
+				font-size: var(--vault-search-result-font-size) !important;
 				color: var(--text-normal) !important;
 				line-height: 1.4 !important;
 				background: var(--background-primary) !important;
@@ -1440,7 +1452,7 @@ export class VaultSearchModal extends Modal {
 			}
 			
 			[data-vault-search-modal="true"] .search-image-no-text {
-				font-size: 12px !important;
+				font-size: var(--vault-search-result-font-size-meta) !important;
 				color: var(--text-faint) !important;
 				font-style: italic !important;
 				padding: 6px 8px !important;
@@ -1448,7 +1460,7 @@ export class VaultSearchModal extends Modal {
 			
 			
 			[data-vault-search-modal="true"] .search-image-file-info {
-				font-size: 11px !important;
+				font-size: var(--vault-search-result-font-size-small) !important;
 				color: var(--text-muted) !important;
 				margin-top: auto !important;
 				padding-top: 6px !important;
@@ -1463,7 +1475,7 @@ export class VaultSearchModal extends Modal {
 			
 			[data-vault-search-modal="true"] .search-file-header.image-file::before {
 				content: "🖼️ " !important;
-				font-size: 12px !important;
+				font-size: var(--vault-search-result-font-size-meta) !important;
 			}
 		`;
 		

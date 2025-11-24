@@ -18,6 +18,7 @@ export interface ImageGallerySettings {
 	searchExcludeFolders: string[];
 	searchMinimalMode: boolean;
 	searchIncludeImages: boolean;
+	searchResultFontSize: number;
 }
 
 export const DEFAULT_SETTINGS: ImageGallerySettings = {
@@ -27,5 +28,6 @@ export const DEFAULT_SETTINGS: ImageGallerySettings = {
 	enableFolderFilter: true,
 	searchExcludeFolders: [],
 	searchMinimalMode: false,
-	searchIncludeImages: true
+	searchIncludeImages: true,
+	searchResultFontSize: 13
 }

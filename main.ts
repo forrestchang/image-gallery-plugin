@@ -21,6 +21,7 @@ interface ImageGallerySettings {
 	searchMinimalMode: boolean;
 	searchIncludeImages: boolean;
 	galleryCardSize: number;
+	searchResultFontSize: number;
 }
 
 const DEFAULT_SETTINGS: ImageGallerySettings = {
@@ -31,7 +32,8 @@ const DEFAULT_SETTINGS: ImageGallerySettings = {
 	searchExcludeFolders: [],
 	searchMinimalMode: false,
 	searchIncludeImages: true,
-	galleryCardSize: 200
+	galleryCardSize: 200,
+	searchResultFontSize: 13
 }
 
 export default class ImageGalleryPlugin extends Plugin {
@@ -1517,15 +1519,15 @@ class ImageGalleryModal extends Modal {
 			.modal.mod-image-gallery .ocr-section button:hover {
 				background: var(--background-modifier-hover);
 			}
-			.modal.mod-image-gallery .image-gallery-container {
-				display: grid;
-				grid-template-columns: repeat(auto-fill, minmax(var(--card-size, 200px), 1fr));
-				gap: 15px;
-				padding: 10px 0 15px 0;
-				max-height: 75vh;
-				overflow-y: auto;
-				--card-size: ${this.currentCardSize}px;
-			}
+				.modal.mod-image-gallery .image-gallery-container {
+					display: grid;
+					grid-template-columns: repeat(auto-fill, minmax(var(--card-size, 200px), 1fr));
+					gap: 15px;
+					padding: 10px 0 15px 0;
+					max-height: 75vh;
+					overflow-y: auto;
+					--card-size: ${this.currentCardSize}px;
+				}
 			.modal.mod-image-gallery .image-gallery-stats {
 				display: flex;
 				justify-content: center;
@@ -1540,25 +1542,25 @@ class ImageGalleryModal extends Modal {
 				font-weight: 500;
 				margin-right: 4px;
 			}
-			.modal.mod-image-gallery .image-gallery-item {
-				position: relative;
-				border: 1px solid var(--background-modifier-border);
-				border-radius: 8px;
-				overflow: hidden;
-				cursor: pointer;
-				transition: transform 0.2s;
-				background: var(--background-secondary);
-			}
+				.modal.mod-image-gallery .image-gallery-item {
+					position: relative;
+					border: 1px solid var(--background-modifier-border);
+					border-radius: 8px;
+					overflow: hidden;
+					cursor: pointer;
+					transition: transform 0.2s;
+					background: var(--background-secondary);
+				}
 			.modal.mod-image-gallery .image-gallery-item:hover {
 				transform: scale(1.05);
 				box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 			}
-			.modal.mod-image-gallery .image-gallery-item img {
-				width: 100%;
-				height: var(--card-size, 200px);
-				object-fit: cover;
-				display: block;
-			}
+				.modal.mod-image-gallery .image-gallery-item img {
+					width: 100%;
+					height: var(--card-size, 200px);
+					object-fit: cover;
+					display: block;
+				}
 			.modal.mod-image-gallery .image-gallery-item-title {
 				padding: 8px;
 				font-size: 12px;
@@ -1981,6 +1983,18 @@ class ImageGallerySettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.searchMinimalMode)
 				.onChange(async (value) => {
 					this.plugin.settings.searchMinimalMode = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Result Font Size')
+			.setDesc('Base font size for Search+ results (in pixels). Adjust to improve readability of the result preview text.')
+			.addSlider(slider => slider
+				.setLimits(10, 24, 1)
+				.setValue(this.plugin.settings.searchResultFontSize)
+				.setDynamicTooltip()
+				.onChange(async (value) => {
+					this.plugin.settings.searchResultFontSize = value;
 					await this.plugin.saveSettings();
 				}));
 
