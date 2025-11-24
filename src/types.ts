@@ -14,7 +14,6 @@ export interface ImageGallerySettings {
 	enableOCRDebug: boolean;
 	ocrConcurrency: number;
 	contextParagraphs: number;
-	enableFolderFilter: boolean;
 	searchExcludeFolders: string[];
 	searchMinimalMode: boolean;
 	searchIncludeImages: boolean;
@@ -25,7 +24,6 @@ export const DEFAULT_SETTINGS: ImageGallerySettings = {
 	enableOCRDebug: false,
 	ocrConcurrency: 4,
 	contextParagraphs: 3,
-	enableFolderFilter: true,
 	searchExcludeFolders: [],
 	searchMinimalMode: false,
 	searchIncludeImages: true,

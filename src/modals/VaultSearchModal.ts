@@ -1008,6 +1008,12 @@ export class VaultSearchModal extends Modal {
 		this.modalEl.addClass('mod-vault-search');
 		this.modalEl.setAttribute('data-vault-search-modal', 'true');
 		
+		// Keep Search+ open when pressing Escape
+		this.scope.register([], 'Escape', (evt) => {
+			evt.preventDefault();
+			evt.stopPropagation();
+		});
+		
 		// Add minimal mode class if enabled
 		if (this.settings?.searchMinimalMode) {
 			this.modalEl.addClass('mod-minimal');

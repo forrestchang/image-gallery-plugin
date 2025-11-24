@@ -12,11 +12,14 @@ interface ImageInfo {
 	ocrText?: string;
 }
 
+function isFailedImagePath(path: string): boolean {
+	return /\.failed\.(png|jpe?g)$/i.test(path.toLowerCase());
+}
+
 interface ImageGallerySettings {
 	enableOCRDebug: boolean;
 	ocrConcurrency: number;
 	contextParagraphs: number;
-	enableFolderFilter: boolean;
 	searchExcludeFolders: string[];
 	searchMinimalMode: boolean;
 	searchIncludeImages: boolean;
@@ -28,7 +31,6 @@ const DEFAULT_SETTINGS: ImageGallerySettings = {
 	enableOCRDebug: false,
 	ocrConcurrency: 4,
 	contextParagraphs: 3,
-	enableFolderFilter: true,
 	searchExcludeFolders: [],
 	searchMinimalMode: false,
 	searchIncludeImages: true,
@@ -161,6 +163,7 @@ export default class ImageGalleryPlugin extends Plugin {
 		for (const file of files) {
 			const extension = file.extension.toLowerCase();
 			if (imageExtensions.includes(extension)) {
+				if (isFailedImagePath(file.name)) continue;
 				images.push({
 					path: file.path,
 					file: file,
@@ -186,6 +189,7 @@ export default class ImageGalleryPlugin extends Plugin {
 				
 				// Check if it looks like an image (has extension or common image name)
 				const hasImageExtension = /\.(png|jpg|jpeg|gif|bmp|svg|webp)$/i.test(imagePath);
+				if (isFailedImagePath(imagePath)) continue;
 				const imageFile = this.app.metadataCache.getFirstLinkpathDest(imagePath, mdFile.path);
 				
 				// Only add if it's an actual file that exists
@@ -195,6 +199,7 @@ export default class ImageGalleryPlugin extends Plugin {
 					const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp'];
 					
 					if (imageExtensions.includes(extension)) {
+						if (isFailedImagePath(imageFile.name)) continue;
 						images.push({
 							path: imageFile.path,
 							file: imageFile,
@@ -224,6 +229,7 @@ export default class ImageGalleryPlugin extends Plugin {
 						imagePath.includes('example.com')) {
 						continue;
 					}
+					if (isFailedImagePath(imagePath)) continue;
 					
 					// Check if we haven't already added this URL
 					if (!addedPaths.has(imagePath)) {
@@ -243,6 +249,7 @@ export default class ImageGalleryPlugin extends Plugin {
 						const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp'];
 						
 						if (imageExtensions.includes(extension)) {
+							if (isFailedImagePath(imageFile.name)) continue;
 							images.push({
 								path: imageFile.path,
 								file: imageFile,
@@ -270,6 +277,7 @@ export default class ImageGalleryPlugin extends Plugin {
 						imagePath.includes('example.com')) {
 						continue;
 					}
+					if (isFailedImagePath(imagePath)) continue;
 					
 					if (!addedPaths.has(imagePath)) {
 						images.push({
@@ -860,11 +868,9 @@ class ImageGalleryModal extends Modal {
 	filteredImages: ImageInfo[];
 	currentSort: string = 'created-new';
 	currentSearch: string = '';
-	currentFolderFilter: string = '';
 	galleryContainer: HTMLElement;
 	ocrService: OCRService;
 	searchInput: TextComponent;
-	folderFilterSelect?: DropdownComponent;
 	statsContainer: HTMLElement;
 	indexStatusEl: HTMLElement;
 	private searchTimeout?: NodeJS.Timeout;
@@ -935,114 +941,15 @@ class ImageGalleryModal extends Modal {
 		}
 	}
 
-	/**
-	 * Get folders that contain images referenced in their notes
-	 */
-	async getFoldersWithImageReferences(): Promise<string[]> {
-		const folderSet = new Set<string>();
-		
-		// Add "All Folders" option
-		folderSet.add('');
-		
-		for (const image of this.images) {
-			if (!image.file) continue;
-			
-			const ocrResult = this.ocrService.getCachedResult(image.file.path);
-			if (ocrResult && ocrResult.context && ocrResult.context.referencingNotes.length > 0) {
-				for (const note of ocrResult.context.referencingNotes) {
-					const file = this.app.vault.getAbstractFileByPath(note.path);
-					if (file && file.parent) {
-						folderSet.add(file.parent.path);
-					}
-				}
-			}
-		}
-		
-		return Array.from(folderSet).sort();
-	}
-
-	/**
-	 * Filter images by folder
-	 */
-	async filterByFolder(folderPath: string) {
-		this.currentFolderFilter = folderPath;
-		
-		if (!folderPath) {
-			// Show all images
-			await this.searchImages(this.currentSearch);
-			return;
-		}
-		
-		// Filter images that are referenced in notes from the selected folder
-		const filteredByFolder: ImageInfo[] = [];
-		
-		for (const image of this.sortedImages) {
-			if (!image.file) {
-				// For remote images, check if they pass the search filter
-				if (this.currentSearch) {
-					const searchLower = this.currentSearch.toLowerCase();
-					if (image.displayName.toLowerCase().includes(searchLower) || 
-						image.path.toLowerCase().includes(searchLower)) {
-						filteredByFolder.push(image);
-					}
-				} else {
-					filteredByFolder.push(image);
-				}
-				continue;
-			}
-			
-			const ocrResult = this.ocrService.getCachedResult(image.file.path);
-			let isInFolder = false;
-			
-			if (ocrResult && ocrResult.context && ocrResult.context.referencingNotes.length > 0) {
-				for (const note of ocrResult.context.referencingNotes) {
-					const file = this.app.vault.getAbstractFileByPath(note.path);
-					if (file && file.parent && file.parent.path === folderPath) {
-						isInFolder = true;
-						break;
-					}
-				}
-			}
-			
-			if (isInFolder) {
-				// Also apply text search if active
-				if (this.currentSearch) {
-					const searchLower = this.currentSearch.toLowerCase();
-					if (image.displayName.toLowerCase().includes(searchLower) || 
-						image.path.toLowerCase().includes(searchLower)) {
-						filteredByFolder.push(image);
-					} else if (ocrResult) {
-						const ocrMatches = this.ocrService.searchImages(this.currentSearch);
-						if (ocrMatches.has(image.file.path)) {
-							filteredByFolder.push(image);
-						}
-					}
-				} else {
-					filteredByFolder.push(image);
-				}
-			}
-		}
-		
-		this.filteredImages = filteredByFolder;
-		this.renderGallery();
-		this.updateStats();
-	}
-	
 	async searchImages(query: string) {
 		this.currentSearch = query.toLowerCase();
 		
-		// Start with all images or folder-filtered images
-		let baseImages = this.sortedImages;
-		if (this.currentFolderFilter) {
-			baseImages = await this.getImagesFromFolder(this.currentFolderFilter);
-		}
-		
 		if (!query) {
-			// No search query, show all images (or folder-filtered)
-			this.filteredImages = [...baseImages];
+			// No search query, show all images
+			this.filteredImages = [...this.sortedImages];
 		} else {
 			// First, filter by filename
-			this.filteredImages = baseImages.filter(img => 
+			this.filteredImages = this.sortedImages.filter(img => 
 				img.displayName.toLowerCase().includes(this.currentSearch)
 			);
 			
@@ -1050,7 +957,7 @@ class ImageGalleryModal extends Modal {
 			if (this.ocrService) {
 				const ocrMatches = this.ocrService.searchImages(query);
 				
-				for (const img of baseImages) {
+				for (const img of this.sortedImages) {
 					if (img.file && ocrMatches.has(img.file.path)) {
 						// Add if not already in filtered list
 						if (!this.filteredImages.includes(img)) {
@@ -1065,61 +972,6 @@ class ImageGalleryModal extends Modal {
 		this.sortImages(this.currentSort);
 		this.renderGallery();
 		this.updateStats();
-	}
-
-	/**
-	 * Helper method to get images from a specific folder
-	 */
-	private async getImagesFromFolder(folderPath: string): Promise<ImageInfo[]> {
-		const filteredByFolder: ImageInfo[] = [];
-		
-		for (const image of this.sortedImages) {
-			if (!image.file) {
-				// Include remote images when no folder filter is applied
-				continue;
-			}
-			
-			const ocrResult = this.ocrService.getCachedResult(image.file.path);
-			if (ocrResult && ocrResult.context && ocrResult.context.referencingNotes.length > 0) {
-				for (const note of ocrResult.context.referencingNotes) {
-					const file = this.app.vault.getAbstractFileByPath(note.path);
-					if (file && file.parent && file.parent.path === folderPath) {
-						filteredByFolder.push(image);
-						break;
-					}
-				}
-			}
-		}
-		
-		return filteredByFolder;
-	}
-
-	/**
-	 * Populate folder filter options
-	 */
-	private async populateFolderOptions() {
-		if (!this.folderFilterSelect) return;
-		
-		const folders = await this.getFoldersWithImageReferences();
-		
-		// Clear existing options
-		this.folderFilterSelect.selectEl.empty();
-		
-		// Add options
-		this.folderFilterSelect.addOption('', 'All Folders');
-		
-		for (const folder of folders) {
-			if (folder) { // Skip empty string (already added as "All Folders")
-				const displayName = folder || 'Root';
-				this.folderFilterSelect.addOption(folder, `📁 ${displayName}`);
-			}
-		}
-		
-		// Set initial value and onChange handler
-		this.folderFilterSelect.setValue(this.currentFolderFilter);
-		this.folderFilterSelect.onChange(async (value) => {
-			await this.filterByFolder(value);
-		});
 	}
 	
 	updateStats() {
@@ -1221,12 +1073,6 @@ class ImageGalleryModal extends Modal {
 				titleEl.title = `Created: ${createdDate.toLocaleString()}`;
 			}
 			
-			// Add click handler to open image preview
-			itemContainer.addEventListener('click', () => {
-				const currentIndex = this.filteredImages.indexOf(imageInfo);
-				new ImagePreviewModal(this.app, imageInfo, this.filteredImages, currentIndex).open();
-			});
-			
 			itemContainer.appendChild(img);
 			itemContainer.appendChild(titleEl);
 			fragment.appendChild(itemContainer);
@@ -1250,6 +1096,12 @@ class ImageGalleryModal extends Modal {
 		
 		// Add custom class to modal for styling
 		this.modalEl.addClass('mod-image-gallery');
+		
+		// Keep gallery open when pressing Escape
+		this.scope.register([], 'Escape', (evt) => {
+			evt.preventDefault();
+			evt.stopPropagation();
+		});
 		
 		// Add title
 		const titleEl = contentEl.createEl('h2', { text: `Image Gallery (${this.images.length} images)` });
@@ -1330,15 +1182,6 @@ class ImageGalleryModal extends Modal {
 				await this.searchImages(this.currentSearch);
 			}
 		});
-		
-		// Folder filter section (if enabled)
-		if (this.settings.enableFolderFilter) {
-			const folderSection = headerContainer.createDiv({ cls: 'folder-section' });
-			this.folderFilterSelect = new DropdownComponent(folderSection);
-			
-			// Populate folder options
-			this.populateFolderOptions();
-		}
 		
 		// Right section: Card size slider and Sort dropdown
 		const rightSection = headerContainer.createDiv({ cls: 'right-section' });
@@ -1465,15 +1308,6 @@ class ImageGalleryModal extends Modal {
 				border-radius: 3px;
 				cursor: help;
 			}
-			.modal.mod-image-gallery .folder-section {
-				flex-shrink: 0;
-				display: flex;
-				align-items: center;
-			}
-			.modal.mod-image-gallery .folder-section .dropdown {
-				font-size: 12px;
-				min-width: 120px;
-			}
 			.modal.mod-image-gallery .right-section {
 				display: flex;
 				align-items: center;
@@ -1547,14 +1381,8 @@ class ImageGalleryModal extends Modal {
 					border: 1px solid var(--background-modifier-border);
 					border-radius: 8px;
 					overflow: hidden;
-					cursor: pointer;
-					transition: transform 0.2s;
 					background: var(--background-secondary);
 				}
-			.modal.mod-image-gallery .image-gallery-item:hover {
-				transform: scale(1.05);
-				box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-			}
 				.modal.mod-image-gallery .image-gallery-item img {
 					width: 100%;
 					height: var(--card-size, 200px);
@@ -1930,16 +1758,6 @@ class ImageGallerySettingTab extends PluginSettingTab {
 				.setDynamicTooltip()
 				.onChange(async (value) => {
 					this.plugin.settings.contextParagraphs = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Enable Folder Filter')
-			.setDesc('Show a folder filter dropdown in the gallery to view images referenced in specific folders. Useful for organizing images by project or topic.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.enableFolderFilter)
-				.onChange(async (value) => {
-					this.plugin.settings.enableFolderFilter = value;
 					await this.plugin.saveSettings();
 				}));
 
