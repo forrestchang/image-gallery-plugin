@@ -1,6 +1,11 @@
-import { App, Modal, Notice, Plugin, TFile, getAllTags, MarkdownView, DropdownComponent, TextComponent, ButtonComponent, PluginSettingTab, Setting } from 'obsidian';
+import { App, Modal, Notice, Plugin, TFile, getAllTags, MarkdownView, DropdownComponent, TextComponent, ButtonComponent, PluginSettingTab, Setting, FuzzySuggestModal } from 'obsidian';
 import { OCRService } from './ocr-service';
 import { VaultSearchModal } from './src/modals/VaultSearchModal';
+
+interface ReferencingNote {
+	title: string;
+	path: string;
+}
 
 interface ImageInfo {
 	path: string;
@@ -10,6 +15,7 @@ interface ImageInfo {
 	createdTime?: number;
 	modifiedTime?: number;
 	ocrText?: string;
+	referencingNotes?: ReferencingNote[];
 }
 
 function isFailedImagePath(path: string): boolean {
@@ -154,12 +160,35 @@ export default class ImageGalleryPlugin extends Plugin {
 	async getAllImages(): Promise<ImageInfo[]> {
 		const images: ImageInfo[] = [];
 		const addedPaths = new Set<string>(); // Track added file paths to avoid duplicates
+		const referencingNotesByPath = new Map<string, Map<string, ReferencingNote>>();
+		const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp'];
+
+		const addReferencingNote = (imagePath: string, mdFile: TFile) => {
+			let noteMap = referencingNotesByPath.get(imagePath);
+			if (!noteMap) {
+				noteMap = new Map<string, ReferencingNote>();
+				referencingNotesByPath.set(imagePath, noteMap);
+			}
+
+			if (!noteMap.has(mdFile.path)) {
+				noteMap.set(mdFile.path, { title: mdFile.basename, path: mdFile.path });
+			}
+		};
+
+		const addReferencingNoteForFile = (imageFile: TFile | null, mdFile: TFile) => {
+			if (!imageFile) return;
+			if (isFailedImagePath(imageFile.name)) return;
+
+			const extension = imageFile.extension.toLowerCase();
+			if (!imageExtensions.includes(extension)) return;
+
+			addReferencingNote(imageFile.path, mdFile);
+		};
 		
 		// Get all files in vault
 		const files = this.app.vault.getFiles();
 		
 		// Filter image files (local images)
-		const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp'];
 		for (const file of files) {
 			const extension = file.extension.toLowerCase();
 			if (imageExtensions.includes(extension)) {
@@ -191,12 +220,12 @@ export default class ImageGalleryPlugin extends Plugin {
 				const hasImageExtension = /\.(png|jpg|jpeg|gif|bmp|svg|webp)$/i.test(imagePath);
 				if (isFailedImagePath(imagePath)) continue;
 				const imageFile = this.app.metadataCache.getFirstLinkpathDest(imagePath, mdFile.path);
+				addReferencingNoteForFile(imageFile, mdFile);
 				
 				// Only add if it's an actual file that exists
 				if (imageFile && !addedPaths.has(imageFile.path)) {
 					// Verify it's an image file
 					const extension = imageFile.extension.toLowerCase();
-					const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp'];
 					
 					if (imageExtensions.includes(extension)) {
 						if (isFailedImagePath(imageFile.name)) continue;
@@ -230,6 +259,7 @@ export default class ImageGalleryPlugin extends Plugin {
 						continue;
 					}
 					if (isFailedImagePath(imagePath)) continue;
+					addReferencingNote(imagePath, mdFile);
 					
 					// Check if we haven't already added this URL
 					if (!addedPaths.has(imagePath)) {
@@ -243,10 +273,10 @@ export default class ImageGalleryPlugin extends Plugin {
 				} else {
 					// Local image reference
 					const imageFile = this.app.metadataCache.getFirstLinkpathDest(imagePath, mdFile.path);
+					addReferencingNoteForFile(imageFile, mdFile);
 					if (imageFile && !addedPaths.has(imageFile.path)) {
 						// Verify it's an image file
 						const extension = imageFile.extension.toLowerCase();
-						const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp'];
 						
 						if (imageExtensions.includes(extension)) {
 							if (isFailedImagePath(imageFile.name)) continue;
@@ -264,6 +294,16 @@ export default class ImageGalleryPlugin extends Plugin {
 				}
 			}
 
+			// Find wiki links: [[image.png]] or [[image|alias]]
+			const wikiLinkRegex = /\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g;
+			while ((match = wikiLinkRegex.exec(content)) !== null) {
+				const linkPath = match[1].trim();
+				if (!linkPath) continue;
+
+				const linkedFile = this.app.metadataCache.getFirstLinkpathDest(linkPath, mdFile.path);
+				addReferencingNoteForFile(linkedFile, mdFile);
+			}
+
 			// Find HTML img tags: <img src="...">
 			const htmlImgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/g;
 			while ((match = htmlImgRegex.exec(content)) !== null) {
@@ -278,6 +318,7 @@ export default class ImageGalleryPlugin extends Plugin {
 						continue;
 					}
 					if (isFailedImagePath(imagePath)) continue;
+					addReferencingNote(imagePath, mdFile);
 					
 					if (!addedPaths.has(imagePath)) {
 						images.push({
@@ -287,7 +328,19 @@ export default class ImageGalleryPlugin extends Plugin {
 						});
 						addedPaths.add(imagePath);
 					}
+				} else {
+					const imageFile = this.app.metadataCache.getFirstLinkpathDest(imagePath, mdFile.path);
+					addReferencingNoteForFile(imageFile, mdFile);
 				}
+			}
+		}
+
+		for (const imageInfo of images) {
+			const noteMap = referencingNotesByPath.get(imageInfo.path);
+			if (noteMap && noteMap.size > 0) {
+				imageInfo.referencingNotes = Array.from(noteMap.values()).sort((a, b) => 
+					a.title.localeCompare(b.title)
+				);
 			}
 		}
 
@@ -862,6 +915,30 @@ class ImagePreviewModal extends Modal {
 	}
 }
 
+class ReferencingNotesModal extends FuzzySuggestModal<ReferencingNote> {
+	private notes: ReferencingNote[];
+	private onSelect: (note: ReferencingNote) => void;
+
+	constructor(app: App, notes: ReferencingNote[], onSelect: (note: ReferencingNote) => void) {
+		super(app);
+		this.notes = notes;
+		this.onSelect = onSelect;
+		this.setPlaceholder('Jump to referencing note');
+	}
+
+	getItems(): ReferencingNote[] {
+		return this.notes;
+	}
+
+	getItemText(item: ReferencingNote): string {
+		return item.title;
+	}
+
+	onChooseItem(item: ReferencingNote): void {
+		this.onSelect(item);
+	}
+}
+
 class ImageGalleryModal extends Modal {
 	images: ImageInfo[];
 	sortedImages: ImageInfo[];
@@ -1031,6 +1108,34 @@ class ImageGalleryModal extends Modal {
 		}
 	}
 
+	private async openReferencingNotes(imageInfo: ImageInfo) {
+		const notes = imageInfo.referencingNotes ? [...imageInfo.referencingNotes] : [];
+		if (notes.length === 0) {
+			new Notice('No referencing notes found for this image.');
+			return;
+		}
+
+		const openNote = async (note: ReferencingNote) => {
+			const file = this.app.vault.getAbstractFileByPath(note.path);
+			if (file instanceof TFile) {
+				const leaf = this.app.workspace.getLeaf('tab');
+				await leaf.openFile(file);
+				this.close();
+			} else {
+				new Notice('Referencing note not found.');
+			}
+		};
+
+		if (notes.length === 1) {
+			await openNote(notes[0]);
+			return;
+		}
+
+		new ReferencingNotesModal(this.app, notes, (note) => {
+			void openNote(note);
+		}).open();
+	}
+
 	renderGallery() {
 		this.galleryContainer.empty();
 		
@@ -1041,6 +1146,19 @@ class ImageGalleryModal extends Modal {
 		for (const imageInfo of this.filteredImages) {
 			const itemContainer = document.createElement('div');
 			itemContainer.className = 'image-gallery-item';
+
+			const referencingNotes = imageInfo.referencingNotes || [];
+			if (referencingNotes.length > 0) {
+				const refBtn = document.createElement('button');
+				refBtn.className = 'image-gallery-ref-btn';
+				refBtn.textContent = `Refs ${referencingNotes.length}`;
+				refBtn.title = `Open referencing notes (${referencingNotes.length})`;
+				refBtn.addEventListener('click', (event) => {
+					event.stopPropagation();
+					void this.openReferencingNotes(imageInfo);
+				});
+				itemContainer.appendChild(refBtn);
+			}
 			
 			const img = document.createElement('img');
 			
@@ -1382,6 +1500,28 @@ class ImageGalleryModal extends Modal {
 					border-radius: 8px;
 					overflow: hidden;
 					background: var(--background-secondary);
+				}
+				.modal.mod-image-gallery .image-gallery-ref-btn {
+					position: absolute;
+					top: 6px;
+					right: 6px;
+					z-index: 1;
+					padding: 2px 6px;
+					font-size: 11px;
+					background: var(--background-primary);
+					border: 1px solid var(--background-modifier-border);
+					border-radius: 4px;
+					color: var(--text-muted);
+					cursor: pointer;
+					opacity: 0;
+					transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+				}
+				.modal.mod-image-gallery .image-gallery-item:hover .image-gallery-ref-btn {
+					opacity: 1;
+				}
+				.modal.mod-image-gallery .image-gallery-ref-btn:hover {
+					background: var(--background-modifier-hover);
+					color: var(--text-normal);
 				}
 				.modal.mod-image-gallery .image-gallery-item img {
 					width: 100%;
