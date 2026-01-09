@@ -1527,6 +1527,7 @@ class ImageGalleryModal extends Modal {
 					width: 100%;
 					height: var(--card-size, 200px);
 					object-fit: cover;
+					object-position: left top;
 					display: block;
 				}
 			.modal.mod-image-gallery .image-gallery-item-title {
